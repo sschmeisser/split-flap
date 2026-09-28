@@ -1,15 +1,16 @@
 /**
- * Procedural Web Audio synthesizer for mechanical Solari split-flap clatter.
- * Generates an authentic, crisp mechanical flap sound with organic pitch variation.
+ * Solari Mechanical Split-Flap Audio Engine
+ * Procedural Web Audio synthesizer recreating the tactile plastic flap and ratchet clatter.
  */
 
 class SolariAudioEngine {
     constructor() {
         this.ctx = null;
         this.muted = false;
-        this.volume = 0.4;
+        this.volume = 0.85; // High default volume so it's clearly audible
         this.lastSoundTime = 0;
-        this.minSoundInterval = 0.025; // Max 40 clacks/sec to prevent audio clutter
+        this.minSoundInterval = 0.035; // Throttle to prevent distorted clipping
+        this.isUnlocked = false;
     }
 
     init() {
@@ -20,7 +21,20 @@ class SolariAudioEngine {
             }
         }
         if (this.ctx && this.ctx.state === 'suspended') {
-            this.ctx.resume();
+            this.ctx.resume().then(() => {
+                this.isUnlocked = true;
+                this.notifyAudioUnlocked();
+            }).catch(() => {});
+        } else if (this.ctx && this.ctx.state === 'running') {
+            this.isUnlocked = true;
+            this.notifyAudioUnlocked();
+        }
+    }
+
+    notifyAudioUnlocked() {
+        const prompt = document.getElementById('audioUnlockPrompt');
+        if (prompt) {
+            prompt.style.display = 'none';
         }
     }
 
@@ -32,63 +46,71 @@ class SolariAudioEngine {
         this.volume = Math.max(0, Math.min(1, val));
     }
 
-    playFlap() {
+    testClack() {
+        this.init();
+        if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume();
+        }
+        // Play 3 rapid mechanical clacks in sequence
+        this.playFlap(true);
+        setTimeout(() => this.playFlap(true), 50);
+        setTimeout(() => this.playFlap(true), 100);
+    }
+
+    playFlap(force = false) {
         if (this.muted || this.volume <= 0) return;
         this.init();
-        if (!this.ctx) return;
+        if (!this.ctx || this.ctx.state !== 'running') return;
 
         const now = this.ctx.currentTime;
-        if (now - this.lastSoundTime < this.minSoundInterval) {
+        if (!force && (now - this.lastSoundTime < this.minSoundInterval)) {
             return;
         }
         this.lastSoundTime = now;
 
         try {
-            // 1. Noise burst for the crisp plastic flap edge snap
-            const bufferSize = Math.floor(this.ctx.sampleRate * 0.02); // 20ms burst
-            const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-            const output = buffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) {
-                output[i] = Math.random() * 2 - 1;
+            // 1. Crisp Plastic Leaf Impact (High-pass / Bandpass noise burst)
+            const noiseLen = Math.floor(this.ctx.sampleRate * 0.035); // 35ms
+            const noiseBuf = this.ctx.createBuffer(1, noiseLen, this.ctx.sampleRate);
+            const data = noiseBuf.getChannelData(0);
+            for (let i = 0; i < noiseLen; i++) {
+                // Decaying noise burst
+                data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (noiseLen * 0.3));
             }
 
-            const whiteNoise = this.ctx.createBufferSource();
-            whiteNoise.buffer = buffer;
+            const noiseNode = this.ctx.createBufferSource();
+            noiseNode.buffer = noiseBuf;
 
-            // Bandpass filter for distinct Solari mechanical plastic snap (2.2kHz - 3.8kHz)
-            const filter = this.ctx.createBiquadFilter();
-            filter.type = 'bandpass';
-            const randomPitch = 2600 + (Math.random() * 800 - 400);
-            filter.frequency.setValueAtTime(randomPitch, now);
-            filter.Q.setValueAtTime(3.0, now);
+            const bandpass = this.ctx.createBiquadFilter();
+            bandpass.type = 'bandpass';
+            // Slight organic pitch variation per flap
+            bandpass.frequency.setValueAtTime(2400 + (Math.random() * 600 - 300), now);
+            bandpass.Q.setValueAtTime(2.2, now);
 
-            // Fast decay envelope
             const noiseGain = this.ctx.createGain();
-            noiseGain.gain.setValueAtTime(this.volume * 0.7, now);
-            noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+            noiseGain.gain.setValueAtTime(this.volume * 0.9, now);
+            noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
 
-            whiteNoise.connect(filter);
-            filter.connect(noiseGain);
+            noiseNode.connect(bandpass);
+            bandpass.connect(noiseGain);
             noiseGain.connect(this.ctx.destination);
+            noiseNode.start(now);
+            noiseNode.stop(now + 0.04);
 
-            whiteNoise.start(now);
-            whiteNoise.stop(now + 0.025);
-
-            // 2. Low-frequency thud for the solenoid / wheel drum resonance
+            // 2. Low-frequency Mechanical Ratchet / Escapement Click (160Hz -> 50Hz)
             const osc = this.ctx.createOscillator();
             const oscGain = this.ctx.createGain();
             osc.type = 'triangle';
-            osc.frequency.setValueAtTime(120 + Math.random() * 30, now);
-            osc.frequency.exponentialRampToValueAtTime(40, now + 0.03);
+            osc.frequency.setValueAtTime(210 + Math.random() * 40, now);
+            osc.frequency.exponentialRampToValueAtTime(50, now + 0.045);
 
-            oscGain.gain.setValueAtTime(this.volume * 0.4, now);
-            oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+            oscGain.gain.setValueAtTime(this.volume * 0.7, now);
+            oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
 
             osc.connect(oscGain);
             oscGain.connect(this.ctx.destination);
-
             osc.start(now);
-            osc.stop(now + 0.035);
+            osc.stop(now + 0.05);
 
         } catch (e) {
             // Audio error fallback
@@ -96,5 +118,4 @@ class SolariAudioEngine {
     }
 }
 
-// Global audio singleton
 window.solariAudio = new SolariAudioEngine();

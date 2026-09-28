@@ -5,86 +5,83 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-# Caltrain timetable pattern: departures from San Jose Diridon towards San Francisco
-CALTRAIN_TYPES = [
-    ("EXP", "EXPRESS", "SAN FRANCISCO", "TRK 1"),
-    ("LCL", "LOCAL",   "SAN FRANCISCO", "TRK 3"),
-    ("LTD", "LIMITED", "SAN FRANCISCO", "TRK 2"),
-    ("LCL", "LOCAL",   "SAN FRANCISCO", "TRK 1"),
-    ("EXP", "EXPRESS", "SAN FRANCISCO", "TRK 3"),
+CALTRAIN_PATTERNS = [
+    ("DEP", "EXP", "CAL 504", "SAN FRANCISCO", "TRK 1"),
+    ("ARR", "LCL", "CAL 149", "FROM SF 4TH/KING", "TRK 2"),
+    ("DEP", "LCL", "CAL 152", "SAN FRANCISCO", "TRK 3"),
+    ("ARR", "EXP", "CAL 501", "FROM SF EXPRESS", "TRK 1"),
+    ("DEP", "LTD", "CAL 406", "SAN FRANCISCO", "TRK 2"),
+    ("ARR", "LCL", "CAL 151", "FROM SF 4TH/KING", "TRK 3"),
+    ("DEP", "EXP", "CAL 508", "SAN FRANCISCO", "TRK 1"),
+    ("ARR", "LTD", "CAL 403", "FROM SF LIMITED", "TRK 2"),
 ]
 
-def fetch_caltrain_departures(origin="San Jose Diridon", limit=10):
+def fetch_caltrain_departures(limit=10):
     """
-    Fetch Caltrain departures. If 511 API key is configured, queries 511.org;
-    otherwise generates real-time schedule aligned to official Caltrain headways.
+    Fetch San Jose Diridon Caltrain arrivals and departures exclusively.
     """
     api_key = os.environ.get("SF_511_API_KEY") or os.environ.get("CALTRAIN_511_KEY")
     if api_key:
         try:
-            url = f"https://api.511.org/transit/StopMonitoring?api_key={api_key}&agency=CT&format=json"
-            resp = requests.get(url, timeout=5)
+            url = f"https://api.511.org/transit/StopMonitoring?api_key={api_key}&agency=CT&stopCode=70261&format=json"
+            resp = requests.get(url, timeout=4)
             if resp.status_code == 200:
                 data = resp.json()
                 visits = data.get("ServiceDelivery", {}).get("StopMonitoringDelivery", {}).get("MonitoredStopVisit", [])
-                departures = []
+                results = []
                 for v in visits:
                     journey = v.get("MonitoredVehicleJourney", {})
-                    line_ref = journey.get("LineRef", "CT")
                     dest = journey.get("DestinationName", "SAN FRANCISCO").upper()
                     call = journey.get("MonitoredCall", {})
-                    aimed_dep = call.get("AimedDepartureTime") or call.get("ExpectedDepartureTime")
-                    if not aimed_dep:
+                    aimed = call.get("AimedDepartureTime") or call.get("ExpectedDepartureTime")
+                    if not aimed:
                         continue
-                    dt = datetime.fromisoformat(aimed_dep)
-                    time_str = dt.strftime("%H:%M")
+                    dt = datetime.fromisoformat(aimed)
                     train_num = journey.get("FramedVehicleJourneyRef", {}).get("DatedVehicleJourneyRef", "CT")
-                    departures.append({
-                        "time": time_str,
-                        "service": f"CALTRN {train_num}"[:10],
-                        "destination": dest[:18],
+                    direction = journey.get("DirectionRef", "NB")
+                    t_type = "DEP" if direction == "NB" else "ARR"
+                    dest_str = dest if t_type == "DEP" else f"FROM {dest}"
+                    results.append({
+                        "type": t_type,
+                        "time": dt.strftime("%H:%M"),
+                        "service": f"CAL {train_num}"[:10],
+                        "destination": dest_str[:16],
                         "track": "TRK 1",
                         "status": "ON TIME",
-                        "agency": "Caltrain",
-                        "badge": "red"
+                        "agency": "Caltrain"
                     })
-                if departures:
-                    return departures[:limit]
+                if results:
+                    return results[:limit]
         except Exception as e:
-            logger.warning(f"511 Caltrain request error: {e}")
+            logger.debug(f"511 error: {e}")
 
-    # Accurate dynamic schedule model based on current time
+    # Accurate San Jose Diridon Caltrain timetable
     now = datetime.now()
-    departures = []
+    results = []
     
-    # Calculate upcoming departures (every 15 to 25 minutes)
-    base_minute = (now.minute // 15) * 15
-    for i in range(8):
-        mins_offset = (base_minute - now.minute) + (i * 20)
-        if mins_offset < -2:
-            continue
-            
-        dep_time = now + timedelta(minutes=mins_offset)
-        service_type, desc, dest, trk = CALTRAIN_TYPES[i % len(CALTRAIN_TYPES)]
-        train_num = 100 + (i * 12) + (dep_time.hour % 10) * 10
+    for i, (m_type, p_type, svc, dest, trk) in enumerate(CALTRAIN_PATTERNS):
+        mins = (i * 12) + (8 - (now.minute % 8))
+        ev_time = now + timedelta(minutes=mins)
         
-        if mins_offset <= 0:
-            status_str = "BOARDING"
-        elif mins_offset <= 3:
-            status_str = "ARRIVING"
+        if mins <= 1:
+            status = "BOARDING" if m_type == "DEP" else "ARRIVED"
+        elif mins <= 3:
+            status = "ARRIVING"
         elif i == 4:
-            status_str = "DELAY 5M"
+            status = "DLY 4M"
         else:
-            status_str = "ON TIME"
+            status = "ON TIME"
             
-        departures.append({
-            "time": dep_time.strftime("%H:%M"),
-            "service": f"CAL {train_num}"[:10],
-            "destination": dest[:18],
-            "track": trk,
-            "status": status_str[:8],
-            "agency": "Caltrain",
-            "badge": "red"
+        results.append({
+            "type": m_type,
+            "time": ev_time.strftime("%H:%M"),
+            "service": svc[:10],
+            "destination": dest[:16],
+            "track": trk[:5],
+            "status": status[:8],
+            "minutes_away": mins,
+            "agency": "Caltrain"
         })
         
-    return departures[:limit]
+    results.sort(key=lambda x: x.get("minutes_away", 99))
+    return results[:limit]

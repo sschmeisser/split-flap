@@ -9,6 +9,11 @@
 </head>
 <body>
 
+    <!-- Audio Unlock Banner if browser autoplay is blocking Web Audio -->
+    <div id="audioUnlockPrompt" class="audio-banner" role="status">
+        <span>🔊 Click anywhere to activate split-flap mechanical sound</span>
+    </div>
+
     <!-- Industrial Station Board Housing -->
     <main class="station-housing" role="region" aria-label="Split-Flap Departures Board">
         
@@ -16,7 +21,7 @@
         <header class="board-header-bar">
             <div class="station-identity">
                 <span class="solari-logo">Solari</span>
-                <h1 class="station-title" id="stationTitle">SAN JOSE DIRIDON / SJC • REGIONAL TRANSIT HUB</h1>
+                <h1 class="station-title" id="stationTitle">BAY AREA REGIONAL HUB • ALL SERVICES BY TIME</h1>
             </div>
             <div class="station-clock-box">
                 <div class="live-indicator">
@@ -29,49 +34,47 @@
 
         <!-- Column Headers -->
         <div class="column-headers" aria-hidden="true">
+            <span class="col-hdr-typ">TYP</span>
             <span class="col-hdr-time">TIME</span>
-            <span class="col-hdr-space1"></span>
             <span class="col-hdr-service">SERVICE</span>
-            <span class="col-hdr-space2"></span>
-            <span class="col-hdr-destination">DESTINATION</span>
-            <span class="col-hdr-space3"></span>
-            <span class="col-hdr-track">TRK/GT</span>
-            <span class="col-hdr-space4"></span>
+            <span class="col-hdr-dest">DEST / ORIGIN</span>
+            <span class="col-hdr-trk">TRK/GT</span>
             <span class="col-hdr-status">STATUS</span>
         </div>
 
-        <!-- The 3D Split-Flap Display Matrix -->
-        <div class="solari-grid" id="solariGrid" role="table" aria-label="Departures">
+        <!-- The 3D Split-Flap Display Matrix (12 rows x 52 columns) -->
+        <div class="solari-grid" id="solariGrid" role="table" aria-label="Departures and Arrivals">
             <!-- Dynamically populated by SplitFlapBoard -->
         </div>
 
         <!-- Board Footer Info Bar -->
         <footer class="board-info-bar">
             <div class="agency-status-pills">
-                <div class="agency-pill"><span class="agency-pill-dot"></span> SJC Airspace (ADS-B)</div>
-                <div class="agency-pill"><span class="agency-pill-dot"></span> BART Live API</div>
-                <div class="agency-pill"><span class="agency-pill-dot"></span> Amtraker SJC</div>
-                <div class="agency-pill"><span class="agency-pill-dot"></span> Caltrain Peninsula</div>
-                <div class="agency-pill"><span class="agency-pill-dot"></span> VTA Light Rail</div>
+                <div class="agency-pill"><span class="agency-pill-dot"></span> SJC Airspace (All Flights)</div>
+                <div class="agency-pill"><span class="agency-pill-dot"></span> BART Berryessa Hub</div>
+                <div class="agency-pill"><span class="agency-pill-dot"></span> Caltrain Diridon Hub</div>
+                <div class="agency-pill"><span class="agency-pill-dot"></span> Amtrak Diridon Hub</div>
+                <div class="agency-pill"><span class="agency-pill-dot"></span> VTA Branham Station</div>
             </div>
             <div id="lastUpdatedText">Live Feed Active</div>
         </footer>
 
     </main>
 
-    <!-- Kiosk / Screensaver Controls Overlay (Fades out when mouse is idle) -->
+    <!-- Controls Overlay (Fades out when mouse is idle) -->
     <nav class="controls-overlay" aria-label="Board Controls">
         <div class="mode-selector">
-            <button class="mode-btn active" data-mode="unified">Unified Hub</button>
+            <button class="mode-btn active" data-mode="unified">Unified Hub (By Time)</button>
             <button class="mode-btn" data-mode="sjc">SJC Flights</button>
-            <button class="mode-btn" data-mode="caltrain">Caltrain</button>
-            <button class="mode-btn" data-mode="bart">BART</button>
-            <button class="mode-btn" data-mode="amtrak">Amtrak</button>
-            <button class="mode-btn" data-mode="vta">VTA Light Rail</button>
+            <button class="mode-btn" data-mode="caltrain">Caltrain Diridon</button>
+            <button class="mode-btn" data-mode="bart">BART Berryessa</button>
+            <button class="mode-btn" data-mode="amtrak">Amtrak Diridon</button>
+            <button class="mode-btn" data-mode="vta">VTA Branham</button>
         </div>
         <div class="tool-actions">
-            <button class="icon-btn active" id="cycleToggleBtn" title="Auto-cycles through modes every 25s">⟳ Auto-Cycle: ON</button>
+            <button class="icon-btn" id="testSoundBtn" title="Test mechanical flap sound (Key: T)">🔊 Test Clack</button>
             <button class="icon-btn active" id="soundToggleBtn" title="Toggle mechanical flap sound (Key: M)">🔊 Sound: ON</button>
+            <button class="icon-btn" id="cycleToggleBtn" title="Auto-cycles through modes every 25s">⏸ Auto-Cycle: OFF</button>
             <button class="icon-btn" id="fullscreenBtn" title="Toggle Fullscreen (Key: F)">⛶ Fullscreen</button>
         </div>
     </nav>

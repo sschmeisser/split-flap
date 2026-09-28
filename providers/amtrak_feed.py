@@ -6,54 +6,67 @@ logger = logging.getLogger(__name__)
 
 def fetch_amtrak_departures(station_code="SJC", limit=10):
     """
-    Fetch live Amtrak departures for San Jose Diridon (SJC) or other stations.
-    Uses public Amtraker v3 API.
+    Fetch live Amtrak arrivals and departures for San Jose Diridon (SJC) exclusively.
     """
     url = f"https://api-v3.amtraker.com/v3/stations/{station_code}"
-    departures = []
+    records = []
     
     try:
-        resp = requests.get(url, timeout=5)
+        resp = requests.get(url, timeout=4)
         if resp.status_code != 200:
-            logger.warning(f"Amtrak station API returned status {resp.status_code}")
-            return departures
+            return records
             
         data = resp.json()
         station_info = data.get(station_code, {})
         train_ids = station_info.get("trains", [])
-        
-        seen_train_nums = set()
+        seen_trains = set()
         
         for tid in train_ids:
-            train_num = tid.split("-")[0]
-            if train_num in seen_train_nums:
+            t_num = tid.split("-")[0]
+            if t_num in seen_trains:
                 continue
-            seen_train_nums.add(train_num)
+            seen_trains.add(t_num)
             
             try:
-                t_resp = requests.get(f"https://api-v3.amtraker.com/v3/trains/{train_num}", timeout=4)
+                t_resp = requests.get(f"https://api-v3.amtraker.com/v3/trains/{t_num}", timeout=3)
                 if t_resp.status_code != 200:
                     continue
                 t_data = t_resp.json()
-                t_list = t_data.get(train_num, [])
+                t_list = t_data.get(t_num, [])
                 if not t_list:
                     continue
                 
-                # Take the most relevant active train
                 t_info = t_list[0]
-                route_name = t_info.get("routeName", "Amtrak")
-                dest_name = t_info.get("destName", "").upper()
-                
-                # Find SJC stop
                 stops = t_info.get("stations", [])
                 sjc_stop = next((s for s in stops if s.get("code") == station_code), None)
-                
                 if not sjc_stop:
                     continue
                 
-                # Check scheduled and actual departure
-                dep_raw = sjc_stop.get("dep") or sjc_stop.get("schDep") or sjc_stop.get("arr") or sjc_stop.get("schArr")
-                if not dep_raw:
+                orig_code = t_info.get("origCode", "")
+                dest_code = t_info.get("destCode", "")
+                dest_name = t_info.get("destName", "").upper()
+                orig_name = t_info.get("origName", "").upper()
+                
+                # Check whether Diridon is destination, origin, or intermediate
+                is_origin = (orig_code == station_code)
+                is_final_dest = (dest_code == station_code)
+                
+                # Arrival or departure time
+                if is_final_dest:
+                    m_type = "ARR"
+                    time_raw = sjc_stop.get("arr") or sjc_stop.get("schArr")
+                    display_target = f"FROM {orig_name}"
+                elif is_origin:
+                    m_type = "DEP"
+                    time_raw = sjc_stop.get("dep") or sjc_stop.get("schDep")
+                    display_target = dest_name
+                else:
+                    # Intermediate stop like Coast Starlight
+                    m_type = "DEP"
+                    time_raw = sjc_stop.get("dep") or sjc_stop.get("schDep") or sjc_stop.get("arr")
+                    display_target = dest_name
+
+                if not time_raw:
                     continue
                     
                 stop_status = sjc_stop.get("status", "Scheduled")
@@ -61,48 +74,36 @@ def fetch_amtrak_departures(station_code="SJC", limit=10):
                 if not platform.upper().startswith("TRK"):
                     platform = f"TRK {platform}" if platform else "TRK 2"
                 
-                # Format time HH:MM
                 try:
-                    dt = datetime.fromisoformat(dep_raw)
+                    dt = datetime.fromisoformat(time_raw)
                     time_str = dt.strftime("%H:%M")
                 except Exception:
-                    time_str = dep_raw[11:16] if len(dep_raw) >= 16 else "--:--"
+                    time_str = time_raw[11:16] if len(time_raw) >= 16 else "--:--"
                 
-                # Format status
                 if stop_status == "Departed":
                     status_str = "DEPARTED"
                 elif stop_status == "Station":
-                    status_str = "BOARDING"
+                    status_str = "BOARDING" if m_type == "DEP" else "ARRIVED"
                 elif stop_status == "Enroute":
                     status_str = "EN ROUTE"
                 else:
                     status_str = "ON TIME"
-                
-                # Service code
-                if "CAPITOL" in route_name.upper():
-                    service_str = f"AMTK {train_num}"
-                elif "STARLIGHT" in route_name.upper():
-                    service_str = f"AMTK {train_num}"
-                else:
-                    service_str = f"AMTK {train_num}"
                     
-                departures.append({
+                records.append({
+                    "type": m_type,
                     "time": time_str,
-                    "service": service_str[:10],
-                    "destination": dest_name[:18],
-                    "track": platform[:6],
+                    "service": f"AMTK {t_num}"[:10],
+                    "destination": display_target[:16],
+                    "track": platform[:5],
                     "status": status_str[:8],
-                    "agency": "Amtrak",
-                    "badge": "blue"
+                    "agency": "Amtrak"
                 })
-            except Exception as inner_e:
-                logger.debug(f"Error fetching Amtrak train {train_num}: {inner_e}")
+            except Exception:
                 continue
                 
-        # Sort by departure time
-        departures.sort(key=lambda x: x["time"])
-        return departures[:limit]
+        records.sort(key=lambda x: x["time"])
+        return records[:limit]
         
     except Exception as e:
-        logger.error(f"Error fetching Amtrak data: {e}")
+        logger.warning(f"Error fetching Amtrak Diridon: {e}")
         return []

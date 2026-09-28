@@ -4,13 +4,6 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-BART_STATIONS = [
-    ("BERY", "Berryessa/N San Jose"),
-    ("MLPT", "Milpitas"),
-    ("WARM", "Warm Springs"),
-    ("MLBR", "Millbrae"),
-]
-
 COLOR_ABBR = {
     "RED": "RED",
     "ORANGE": "ORG",
@@ -19,76 +12,96 @@ COLOR_ABBR = {
     "BLUE": "BLU",
 }
 
-def fetch_bart_departures(orig="BERY", limit=10):
+def fetch_bart_departures(limit=10):
     """
-    Fetch live BART departures from official BART API.
-    Uses open demo key MW9S-E7SL-26DU-VV8V.
+    Fetch Berryessa / North San Jose BART arrivals and departures exclusively.
+    - Departures from Berryessa towards Richmond and Daly City.
+    - Arrivals into Berryessa from Richmond and Daly City.
     """
-    url = f"https://api.bart.gov/api/etd.aspx?cmd=etd&orig={orig}&key=MW9S-E7SL-26DU-VV8V&json=y"
-    departures = []
+    now = datetime.now()
+    records = []
     
+    # 1. Berryessa Departures
     try:
-        resp = requests.get(url, timeout=5)
-        if resp.status_code != 200:
-            logger.warning(f"BART API returned status {resp.status_code}")
-            return departures
-            
-        data = resp.json()
-        stations = data.get("root", {}).get("station", [])
-        if not stations:
-            return departures
-            
-        now = datetime.now()
-        station_data = stations[0]
-        etd_list = station_data.get("etd", [])
-        
-        for item in etd_list:
-            dest = item.get("destination", "").upper()
-            dest_abbr = item.get("abbreviation", "")
-            estimates = item.get("estimate", [])
-            
-            for est in estimates:
-                mins_str = est.get("minutes", "0")
-                color = est.get("color", "")
-                platform = est.get("platform", "1")
-                delay_sec = int(est.get("delay", "0") or "0")
-                
-                try:
-                    mins = int(mins_str) if mins_str != "Leaving" else 0
-                except ValueError:
-                    mins = 0
-                    
-                dep_time = now + timedelta(minutes=mins)
-                time_str = dep_time.strftime("%H:%M")
-                
-                color_code = COLOR_ABBR.get(color.upper(), color[:3].upper())
-                service_str = f"BART {color_code}"
-                
-                if mins_str == "Leaving" or mins == 0:
-                    status_str = "BOARDING"
-                elif delay_sec > 60:
-                    delay_min = round(delay_sec / 60)
-                    status_str = f"DLY {delay_min}M"
-                elif mins <= 3:
-                    status_str = "ARRIVING"
-                else:
-                    status_str = f"{mins} MIN"
-                    
-                departures.append({
-                    "time": time_str,
-                    "service": service_str,
-                    "destination": dest[:18],
-                    "track": f"PLT {platform}",
-                    "status": status_str,
-                    "minutes_away": mins,
-                    "agency": "BART",
-                    "badge": color.lower()
-                })
-                
-        # Sort by minutes away
-        departures.sort(key=lambda x: x["minutes_away"])
-        return departures[:limit]
-        
+        url_dep = "https://api.bart.gov/api/etd.aspx?cmd=etd&orig=BERY&key=MW9S-E7SL-26DU-VV8V&json=y"
+        resp = requests.get(url_dep, timeout=4)
+        if resp.status_code == 200:
+            data = resp.json()
+            stations = data.get("root", {}).get("station", [])
+            if stations:
+                for item in stations[0].get("etd", []):
+                    dest = item.get("destination", "").upper()
+                    for est in item.get("estimate", []):
+                        mins_str = est.get("minutes", "0")
+                        color = est.get("color", "")
+                        platform = est.get("platform", "1")
+                        delay_sec = int(est.get("delay", "0") or "0")
+                        mins = int(mins_str) if mins_str != "Leaving" else 0
+                        
+                        dep_time = (now + timedelta(minutes=mins)).strftime("%H:%M")
+                        color_code = COLOR_ABBR.get(color.upper(), color[:3].upper())
+                        
+                        if mins_str == "Leaving" or mins == 0:
+                            status = "BOARDING"
+                        elif delay_sec > 60:
+                            status = f"DLY {round(delay_sec/60)}M"
+                        elif mins <= 2:
+                            status = "CLOSING"
+                        else:
+                            status = f"{mins} MIN"
+                            
+                        records.append({
+                            "type": "DEP",
+                            "time": dep_time,
+                            "service": f"BART {color_code}"[:10],
+                            "destination": dest[:16],
+                            "track": f"PLT {platform}"[:5],
+                            "status": status[:8],
+                            "minutes_away": mins,
+                            "agency": "BART"
+                        })
     except Exception as e:
-        logger.error(f"Error fetching BART data: {e}")
-        return []
+        logger.warning(f"Error fetching BART Berryessa departures: {e}")
+
+    # 2. Berryessa Arrivals (trains approaching Berryessa from Milpitas)
+    try:
+        url_arr = "https://api.bart.gov/api/etd.aspx?cmd=etd&orig=MLPT&key=MW9S-E7SL-26DU-VV8V&json=y"
+        resp = requests.get(url_arr, timeout=4)
+        if resp.status_code == 200:
+            data = resp.json()
+            stations = data.get("root", {}).get("station", [])
+            if stations:
+                for item in stations[0].get("etd", []):
+                    if "BERY" in item.get("abbreviation", "") or "BERRYESSA" in item.get("destination", "").upper():
+                        for est in item.get("estimate", []):
+                            mins_str = est.get("minutes", "0")
+                            color = est.get("color", "")
+                            platform = est.get("platform", "1")
+                            mins = (int(mins_str) if mins_str != "Leaving" else 0) + 4
+                            arr_time = (now + timedelta(minutes=mins)).strftime("%H:%M")
+                            color_code = COLOR_ABBR.get(color.upper(), color[:3].upper())
+                            
+                            origin = "RICHMOND" if color_code == "ORG" else "DALY CITY"
+                            
+                            if mins <= 2:
+                                status = "ARRIVING"
+                            elif mins <= 5:
+                                status = "APPROACH"
+                            else:
+                                status = f"{mins} MIN"
+                                
+                            records.append({
+                                "type": "ARR",
+                                "time": arr_time,
+                                "service": f"BART {color_code}"[:10],
+                                "destination": f"FROM {origin}"[:16],
+                                "track": f"PLT {platform}"[:5],
+                                "status": status[:8],
+                                "minutes_away": mins,
+                                "agency": "BART"
+                            })
+    except Exception as e:
+        logger.warning(f"Error fetching BART Berryessa arrivals: {e}")
+
+    records.sort(key=lambda x: x.get("minutes_away", 99))
+    return records[:limit]
