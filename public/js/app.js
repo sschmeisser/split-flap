@@ -55,8 +55,11 @@ const HUBS = {
 class SolariApp {
     constructor() {
         this.board = null;
-        this.currentHub = localStorage.getItem('solari_current_hub') || 'sanjose';
-        this.currentMode = localStorage.getItem(`solari_current_mode_${this.currentHub}`) || HUBS[this.currentHub].defaultMode;
+        const urlParams = new URLSearchParams(window.location.search);
+        const hubParam = urlParams.get('hub');
+        this.currentHub = (hubParam && HUBS[hubParam]) ? hubParam : (localStorage.getItem('solari_current_hub') || 'sanjose');
+        const modeParam = urlParams.get('mode');
+        this.currentMode = modeParam || localStorage.getItem(`solari_current_mode_${this.currentHub}`) || HUBS[this.currentHub].defaultMode;
         this.fetchTimer = null;
         this.idleTimeout = null;
         this.soundEnabled = true;
@@ -305,13 +308,13 @@ class SolariApp {
 
     formatRow(item) {
         // Layout:
-        // TYPE (3) + ' ' (1) + TIME (5) + ' ' (1) + SERVICE (10) + ' ' (1) + DEST (16) + ' ' (1) + TRK (5) + ' ' (1) + STATUS (8) = 52 characters
+        // TYPE (3) + ' ' (1) + TIME (5) + ' ' (1) + SERVICE (10) + ' ' (1) + DEST (15) + ' ' (1) + TRK (5) + ' ' (1) + STATUS (9) = 52 characters
         const type = (item.type || 'DEP').padEnd(3, ' ').slice(0, 3);
         const time = (item.time || '--:--').padEnd(5, ' ').slice(0, 5);
         const service = (item.service || '').padEnd(10, ' ').slice(0, 10);
-        const dest = (item.destination || '').padEnd(16, ' ').slice(0, 16);
+        const dest = (item.destination || '').padEnd(15, ' ').slice(0, 15);
         const track = (item.track || '').padEnd(5, ' ').slice(0, 5);
-        const status = (item.status || '').padEnd(8, ' ').slice(0, 8);
+        const status = (item.status || '').padEnd(9, ' ').slice(0, 9);
 
         return `${type} ${time} ${service} ${dest} ${track} ${status}`;
     }

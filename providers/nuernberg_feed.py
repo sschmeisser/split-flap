@@ -68,9 +68,9 @@ def fetch_nuernberg_departures(limit=12, category="all"):
             "type": m_type,
             "time": dep_time.strftime("%H:%M"),
             "service": svc[:10],
-            "destination": dest[:16],
+            "destination": dest[:15],
             "track": trk[:5],
-            "status": status[:8],
+            "status": status[:9],
             "minutes_away": mins,
             "agency": "DB"
         })

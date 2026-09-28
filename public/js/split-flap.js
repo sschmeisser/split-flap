@@ -7,7 +7,8 @@ const FLAP_CHARS = [
     ' ', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
     'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-    '-', '.', ':', '/', "'", '(', ')', '+', '&', 'Ä', 'Ö', 'Ü'
+    '-', '.', ':', '/', "'", '(', ')', '+', '&',
+    '\u00C4', '\u00D6', '\u00DC', '\u00DF'
 ];
 
 class SplitFlapTile {
@@ -22,8 +23,24 @@ class SplitFlapTile {
 
     cleanChar(char) {
         if (!char) return ' ';
-        const upper = char.toString().toUpperCase();
-        return FLAP_CHARS.includes(upper) ? upper : ' ';
+        // Normalize unicode so decomposed sequences (e.g. U + diaeresis) become single precomposed glyphs
+        const normalized = char.toString().normalize('NFC');
+        const upper = normalized.toUpperCase();
+        if (FLAP_CHARS.includes(upper)) {
+            return upper;
+        }
+        // Direct mapping fallbacks
+        if (upper === '\u00C4' || normalized === 'ä' || normalized === 'Ä') return '\u00C4';
+        if (upper === '\u00D6' || normalized === 'ö' || normalized === 'Ö') return '\u00D6';
+        if (upper === '\u00DC' || normalized === 'ü' || normalized === 'Ü') return '\u00DC';
+        if (normalized === 'ß' || upper === 'SS') return 'S';
+
+        // Strip combining accents as a graceful fallback (e.g. é -> E)
+        const stripped = upper.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (FLAP_CHARS.includes(stripped)) {
+            return stripped;
+        }
+        return ' ';
     }
 
     initDom() {

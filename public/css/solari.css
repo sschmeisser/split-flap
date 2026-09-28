@@ -209,12 +209,12 @@ body.idle .audio-banner {
 .col-hdr-time { width: calc(var(--tile-width) * 6 + 12px); }
 /* 10 chars + 1 sp */
 .col-hdr-service { width: calc(var(--tile-width) * 11 + 22px); }
-/* 16 chars + 1 sp */
-.col-hdr-dest { width: calc(var(--tile-width) * 17 + 34px); }
+/* 15 chars + 1 sp */
+.col-hdr-dest { width: calc(var(--tile-width) * 16 + 32px); }
 /* 5 chars + 1 sp */
 .col-hdr-trk { width: calc(var(--tile-width) * 6 + 12px); }
-/* 8 chars */
-.col-hdr-status { width: calc(var(--tile-width) * 8 + 16px); }
+/* 9 chars */
+.col-hdr-status { width: calc(var(--tile-width) * 9 + 18px); }
 
 /* The Main Solari Board Grid (12 rows) */
 .solari-grid {
@@ -261,7 +261,7 @@ body.idle .audio-banner {
     overflow: hidden;
     background: linear-gradient(180deg, #25272e 0%, #1c1d22 100%);
     color: var(--flap-text);
-    font-family: 'DIN Alternate', 'Barlow Condensed', 'Arial Black', sans-serif;
+    font-family: 'Barlow Condensed', 'DIN Alternate', 'Arial Black', sans-serif;
     font-weight: 800;
     font-size: var(--tile-font-size);
     text-align: center;
@@ -310,7 +310,7 @@ body.idle .audio-banner {
     overflow: hidden;
     background: linear-gradient(180deg, #2a2c34 0%, #1e1f26 100%);
     color: var(--flap-text);
-    font-family: 'DIN Alternate', 'Barlow Condensed', 'Arial Black', sans-serif;
+    font-family: 'Barlow Condensed', 'DIN Alternate', 'Arial Black', sans-serif;
     font-weight: 800;
     font-size: var(--tile-font-size);
     border-radius: 3px 3px 0 0;
