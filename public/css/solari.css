@@ -1,0 +1,477 @@
+/*
+ * Solari Split-Flap Board Styling
+ * Authentic European Transit Station Aesthetics (Solari di Udine style)
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@700;800;900&family=Inter:wght@400;600;700&display=swap');
+
+:root {
+    --bg-casing: #121316;
+    --bg-board: #0a0b0d;
+    --flap-bg: #1c1d22;
+    --flap-text: #f0ede6;
+    --flap-border: #0d0e11;
+    --seam-color: #070809;
+    --header-yellow: #f5b722;
+    --accent-amber: #e69d1e;
+    --accent-green: #2ecc71;
+    --accent-red: #e74c3c;
+    --accent-blue: #3498db;
+    --tile-width: 22px;
+    --tile-height: 38px;
+    --tile-font-size: 27px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+}
+
+body {
+    background-color: #08090a;
+    color: #e5e5e5;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow-x: hidden;
+    user-select: none;
+}
+
+/* Idle cursor hiding for screensaver mode */
+body.idle {
+    cursor: none;
+}
+
+body.idle .controls-overlay {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Outer Industrial Station Board Housing */
+.station-housing {
+    width: 96vw;
+    max-width: 1420px;
+    background: linear-gradient(180deg, #24262b 0%, #17181c 30%, #0f1013 100%);
+    border: 3px solid #2e3038;
+    border-radius: 12px;
+    box-shadow: 
+        0 25px 50px -12px rgba(0, 0, 0, 0.9),
+        0 0 0 1px rgba(255, 255, 255, 0.05),
+        inset 0 2px 4px rgba(255, 255, 255, 0.1),
+        inset 0 -2px 6px rgba(0, 0, 0, 0.8);
+    padding: 18px 24px;
+    margin: 20px auto;
+    position: relative;
+}
+
+/* Corner Industrial Screws */
+.station-housing::before,
+.station-housing::after {
+    content: '';
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: #3e424c;
+    border-radius: 50%;
+    box-shadow: inset 1px 1px 1px #5a5f6e, 1px 1px 2px #000;
+}
+.station-housing::before { top: 8px; left: 8px; }
+.station-housing::after { top: 8px; right: 8px; }
+
+/* Top Header Bar */
+.board-header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 2px solid #2a2d36;
+    padding-bottom: 14px;
+    margin-bottom: 12px;
+}
+
+.station-identity {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.solari-logo {
+    display: inline-block;
+    background: #e69d1e;
+    color: #111;
+    font-weight: 900;
+    font-size: 11px;
+    letter-spacing: 2px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    text-transform: uppercase;
+}
+
+.station-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 800;
+    font-size: 26px;
+    letter-spacing: 2px;
+    color: #f3f4f6;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+    text-transform: uppercase;
+}
+
+.station-clock-box {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.live-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    color: #8e94a5;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.live-dot {
+    width: 8px;
+    height: 8px;
+    background-color: var(--accent-green);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent-green);
+    animation: pulse-glow 2s infinite ease-in-out;
+}
+
+@keyframes pulse-glow {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.station-clock {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 24px;
+    color: var(--header-yellow);
+    background: #060708;
+    padding: 4px 12px;
+    border-radius: 4px;
+    border: 1px solid #282a32;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.8);
+    letter-spacing: 2px;
+}
+
+/* Solari Column Headers */
+.column-headers {
+    display: flex;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: 1.5px;
+    color: var(--header-yellow);
+    text-transform: uppercase;
+    padding: 0 4px 8px 4px;
+    border-bottom: 1px solid #1f2127;
+    margin-bottom: 8px;
+}
+
+.col-hdr-time { width: calc(var(--tile-width) * 5 + 8px); }
+.col-hdr-space1 { width: var(--tile-width); }
+.col-hdr-service { width: calc(var(--tile-width) * 10 + 10px); }
+.col-hdr-space2 { width: var(--tile-width); }
+.col-hdr-destination { width: calc(var(--tile-width) * 18 + 18px); }
+.col-hdr-space3 { width: var(--tile-width); }
+.col-hdr-track { width: calc(var(--tile-width) * 6 + 6px); }
+.col-hdr-space4 { width: var(--tile-width); }
+.col-hdr-status { width: calc(var(--tile-width) * 8 + 8px); }
+
+/* The Main Solari Board Grid */
+.solari-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    background: var(--bg-board);
+    padding: 10px;
+    border-radius: 6px;
+    border: 2px solid #1a1c22;
+    box-shadow: inset 0 6px 14px rgba(0, 0, 0, 0.9);
+    overflow: hidden;
+}
+
+/* Row of Flaps */
+.solari-row {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+/* Split-Flap Tile Structure */
+.flap-tile {
+    position: relative;
+    width: var(--tile-width);
+    height: var(--tile-height);
+    background: var(--flap-bg);
+    border-radius: 3px;
+    perspective: 400px;
+    transform-style: preserve-3d;
+    box-shadow: 
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Split Hinge Side Notches */
+.flap-notch-left,
+.flap-notch-right {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 5px;
+    background: #08080a;
+    z-index: 25;
+    border-radius: 1px;
+}
+.flap-notch-left { left: 0; }
+.flap-notch-right { right: 0; }
+
+/* The Horizontal Center Seam */
+.flap-divider {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 1.5px;
+    background: var(--seam-color);
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
+    z-index: 20;
+    transform: translateY(-50%);
+}
+
+/* Common Flap Half Styling */
+.flap {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 50%;
+    overflow: hidden;
+    background: linear-gradient(180deg, #23252b 0%, #1a1b20 100%);
+    color: var(--flap-text);
+    font-family: 'Barlow Condensed', 'DIN Alternate', sans-serif;
+    font-weight: 800;
+    font-size: var(--tile-font-size);
+    text-align: center;
+    backface-visibility: hidden;
+    transform-origin: center;
+}
+
+/* Character Alignment inside Upper and Lower halves */
+.flap-char {
+    display: block;
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: var(--tile-height);
+    line-height: var(--tile-height);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+/* Upper Half: top: 0, text aligned from top */
+.flap-upper {
+    top: 0;
+    border-radius: 2px 2px 0 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+    transform-origin: bottom center;
+}
+.flap-upper .flap-char {
+    top: 0;
+}
+
+/* Lower Half: bottom: 0, text shifted up so bottom half shows */
+.flap-lower {
+    bottom: 0;
+    border-radius: 0 0 2px 2px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    transform-origin: top center;
+}
+.flap-lower .flap-char {
+    top: calc(var(--tile-height) * -0.5);
+}
+
+/* Front & Back Flaps Layering */
+.flap-back {
+    z-index: 1;
+}
+
+.flap-front {
+    z-index: 2;
+}
+
+/* Mechanical 3D Flip Down Animation */
+.flap-tile.flipping .flap-upper.flap-front {
+    animation: flip-down-upper 60ms linear forwards;
+    z-index: 10;
+}
+
+.flap-tile.flipping .flap-lower.flap-back {
+    animation: flip-down-lower 60ms linear forwards;
+    z-index: 9;
+}
+
+@keyframes flip-down-upper {
+    0% {
+        transform: rotateX(0deg);
+        filter: brightness(1);
+    }
+    100% {
+        transform: rotateX(-90deg);
+        filter: brightness(0.65);
+    }
+}
+
+@keyframes flip-down-lower {
+    0% {
+        transform: rotateX(90deg);
+        filter: brightness(0.65);
+    }
+    100% {
+        transform: rotateX(0deg);
+        filter: brightness(1);
+    }
+}
+
+/* Footer & Controls Overlay */
+.controls-overlay {
+    width: 96vw;
+    max-width: 1420px;
+    margin: 10px auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: opacity 0.4s ease;
+    padding: 0 8px;
+}
+
+.mode-selector {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.mode-btn {
+    background: #18191f;
+    color: #a0a6b5;
+    border: 1px solid #282a34;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.mode-btn:hover {
+    background: #252834;
+    color: #fff;
+    border-color: #3d4254;
+}
+
+.mode-btn.active {
+    background: var(--accent-amber);
+    color: #0b0c0e;
+    border-color: var(--accent-amber);
+    font-weight: 700;
+}
+
+.tool-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.icon-btn {
+    background: #18191f;
+    color: #a0a6b5;
+    border: 1px solid #282a34;
+    padding: 6px 12px;
+    font-size: 13px;
+    border-radius: 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+
+.icon-btn:hover {
+    background: #252834;
+    color: #fff;
+}
+
+.icon-btn.active {
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+}
+
+/* Info Bar at Bottom */
+.board-info-bar {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid #1a1c22;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: #636b7b;
+    font-family: 'Inter', sans-serif;
+}
+
+.agency-status-pills {
+    display: flex;
+    gap: 12px;
+}
+
+.agency-pill {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.agency-pill-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--accent-green);
+}
+
+/* Responsive Scaling for smaller screens or wide monitors */
+@media (max-width: 1400px) {
+    :root {
+        --tile-width: 19px;
+        --tile-height: 33px;
+        --tile-font-size: 24px;
+    }
+}
+
+@media (max-width: 1180px) {
+    :root {
+        --tile-width: 16px;
+        --tile-height: 28px;
+        --tile-font-size: 20px;
+    }
+    .station-title { font-size: 20px; }
+}
+
+@media (max-width: 900px) {
+    :root {
+        --tile-width: 12px;
+        --tile-height: 22px;
+        --tile-font-size: 16px;
+    }
+    .station-housing { padding: 10px; }
+}
