@@ -7,19 +7,19 @@
 
 :root {
     --bg-casing: #121316;
-    --bg-board: #0a0b0d;
-    --flap-bg: #1c1d22;
-    --flap-text: #f0ede6;
+    --bg-board: #060709;
+    --flap-bg: #18191d;
+    --flap-text: #f6f3eb;
     --flap-border: #0d0e11;
-    --seam-color: #070809;
+    --seam-color: #08090b;
     --header-yellow: #f5b722;
     --accent-amber: #e69d1e;
     --accent-green: #2ecc71;
     --accent-red: #e74c3c;
     --accent-blue: #3498db;
-    --tile-width: 22px;
+    --tile-width: 23px;
     --tile-height: 38px;
-    --tile-font-size: 27px;
+    --tile-font-size: 26px;
 }
 
 * {
@@ -55,7 +55,7 @@ body.idle .controls-overlay {
 /* Outer Industrial Station Board Housing */
 .station-housing {
     width: 96vw;
-    max-width: 1420px;
+    max-width: 1400px;
     background: linear-gradient(180deg, #24262b 0%, #17181c 30%, #0f1013 100%);
     border: 3px solid #2e3038;
     border-radius: 12px;
@@ -180,25 +180,25 @@ body.idle .controls-overlay {
 
 .col-hdr-time { width: calc(var(--tile-width) * 5 + 8px); }
 .col-hdr-space1 { width: var(--tile-width); }
-.col-hdr-service { width: calc(var(--tile-width) * 10 + 10px); }
+.col-hdr-service { width: calc(var(--tile-width) * 10 + 18px); }
 .col-hdr-space2 { width: var(--tile-width); }
-.col-hdr-destination { width: calc(var(--tile-width) * 18 + 18px); }
+.col-hdr-destination { width: calc(var(--tile-width) * 18 + 36px); }
 .col-hdr-space3 { width: var(--tile-width); }
-.col-hdr-track { width: calc(var(--tile-width) * 6 + 6px); }
+.col-hdr-track { width: calc(var(--tile-width) * 6 + 12px); }
 .col-hdr-space4 { width: var(--tile-width); }
-.col-hdr-status { width: calc(var(--tile-width) * 8 + 8px); }
+.col-hdr-status { width: calc(var(--tile-width) * 8 + 16px); }
 
 /* The Main Solari Board Grid */
 .solari-grid {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 4px;
     background: var(--bg-board);
-    padding: 10px;
-    border-radius: 6px;
+    padding: 12px;
+    border-radius: 8px;
     border: 2px solid #1a1c22;
     box-shadow: inset 0 6px 14px rgba(0, 0, 0, 0.9);
-    overflow: hidden;
+    overflow-x: auto;
 }
 
 /* Row of Flaps */
@@ -211,35 +211,109 @@ body.idle .controls-overlay {
 
 /* Split-Flap Tile Structure */
 .flap-tile {
+    flex-shrink: 0;
     position: relative;
     width: var(--tile-width);
     height: var(--tile-height);
     background: var(--flap-bg);
     border-radius: 3px;
-    perspective: 400px;
+    perspective: 350px;
     transform-style: preserve-3d;
     box-shadow: 
-        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 2px 4px rgba(0, 0, 0, 0.8),
         inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
-/* Split Hinge Side Notches */
-.flap-notch-left,
-.flap-notch-right {
+/* Upper & Lower Halves */
+.flap-half {
     position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 3px;
-    height: 5px;
-    background: #08080a;
-    z-index: 25;
-    border-radius: 1px;
+    left: 0;
+    width: 100%;
+    height: 50%;
+    overflow: hidden;
+    background: linear-gradient(180deg, #25272e 0%, #1c1d22 100%);
+    color: var(--flap-text);
+    font-family: 'DIN Alternate', 'Barlow Condensed', 'Arial Black', sans-serif;
+    font-weight: 800;
+    font-size: var(--tile-font-size);
+    text-align: center;
 }
-.flap-notch-left { left: 0; }
-.flap-notch-right { right: 0; }
 
-/* The Horizontal Center Seam */
-.flap-divider {
+.flap-half.top {
+    top: 0;
+    border-radius: 3px 3px 0 0;
+    border-bottom: 1px solid #000;
+    transform-origin: bottom center;
+}
+
+.flap-half.bottom {
+    bottom: 0;
+    border-radius: 0 0 3px 3px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    transform-origin: top center;
+}
+
+.flap-half span,
+.flap-flipper span {
+    display: block;
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: var(--tile-height);
+    line-height: var(--tile-height);
+    text-align: center;
+}
+
+.flap-half.top span {
+    top: 0;
+}
+
+.flap-half.bottom span {
+    top: calc(var(--tile-height) * -0.5);
+}
+
+/* Active 3D Folding Leaf */
+.flap-flipper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 50%;
+    overflow: hidden;
+    background: linear-gradient(180deg, #2a2c34 0%, #1e1f26 100%);
+    color: var(--flap-text);
+    font-family: 'DIN Alternate', 'Barlow Condensed', 'Arial Black', sans-serif;
+    font-weight: 800;
+    font-size: var(--tile-font-size);
+    border-radius: 3px 3px 0 0;
+    transform-origin: bottom center;
+    z-index: 10;
+    backface-visibility: hidden;
+    display: none;
+}
+
+.flap-flipper span {
+    top: 0;
+}
+
+.flap-flipper.flip-anim {
+    display: block;
+    animation: foldDown 55ms linear forwards;
+}
+
+@keyframes foldDown {
+    0% {
+        transform: rotateX(0deg);
+        filter: brightness(1);
+    }
+    100% {
+        transform: rotateX(-90deg);
+        filter: brightness(0.6);
+    }
+}
+
+/* Center Horizontal Divider Seam */
+.flap-seam {
     position: absolute;
     top: 50%;
     left: 0;
@@ -251,102 +325,29 @@ body.idle .controls-overlay {
     transform: translateY(-50%);
 }
 
-/* Common Flap Half Styling */
-.flap {
+/* Split Hinge Side Notches */
+.flap-hinge {
     position: absolute;
+    top: 50%;
+    width: 2.5px;
+    height: 5px;
+    background: #090a0c;
+    transform: translateY(-50%);
+    z-index: 25;
+}
+.flap-hinge.left {
     left: 0;
-    width: 100%;
-    height: 50%;
-    overflow: hidden;
-    background: linear-gradient(180deg, #23252b 0%, #1a1b20 100%);
-    color: var(--flap-text);
-    font-family: 'Barlow Condensed', 'DIN Alternate', sans-serif;
-    font-weight: 800;
-    font-size: var(--tile-font-size);
-    text-align: center;
-    backface-visibility: hidden;
-    transform-origin: center;
+    border-radius: 0 1px 1px 0;
 }
-
-/* Character Alignment inside Upper and Lower halves */
-.flap-char {
-    display: block;
-    position: absolute;
-    left: 0;
-    width: 100%;
-    height: var(--tile-height);
-    line-height: var(--tile-height);
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
-}
-
-/* Upper Half: top: 0, text aligned from top */
-.flap-upper {
-    top: 0;
-    border-radius: 2px 2px 0 0;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.4);
-    transform-origin: bottom center;
-}
-.flap-upper .flap-char {
-    top: 0;
-}
-
-/* Lower Half: bottom: 0, text shifted up so bottom half shows */
-.flap-lower {
-    bottom: 0;
-    border-radius: 0 0 2px 2px;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    transform-origin: top center;
-}
-.flap-lower .flap-char {
-    top: calc(var(--tile-height) * -0.5);
-}
-
-/* Front & Back Flaps Layering */
-.flap-back {
-    z-index: 1;
-}
-
-.flap-front {
-    z-index: 2;
-}
-
-/* Mechanical 3D Flip Down Animation */
-.flap-tile.flipping .flap-upper.flap-front {
-    animation: flip-down-upper 60ms linear forwards;
-    z-index: 10;
-}
-
-.flap-tile.flipping .flap-lower.flap-back {
-    animation: flip-down-lower 60ms linear forwards;
-    z-index: 9;
-}
-
-@keyframes flip-down-upper {
-    0% {
-        transform: rotateX(0deg);
-        filter: brightness(1);
-    }
-    100% {
-        transform: rotateX(-90deg);
-        filter: brightness(0.65);
-    }
-}
-
-@keyframes flip-down-lower {
-    0% {
-        transform: rotateX(90deg);
-        filter: brightness(0.65);
-    }
-    100% {
-        transform: rotateX(0deg);
-        filter: brightness(1);
-    }
+.flap-hinge.right {
+    right: 0;
+    border-radius: 1px 0 0 1px;
 }
 
 /* Footer & Controls Overlay */
 .controls-overlay {
     width: 96vw;
-    max-width: 1420px;
+    max-width: 1400px;
     margin: 10px auto;
     display: flex;
     align-items: center;
@@ -449,29 +450,29 @@ body.idle .controls-overlay {
     background-color: var(--accent-green);
 }
 
-/* Responsive Scaling for smaller screens or wide monitors */
+/* Responsive Scaling */
 @media (max-width: 1400px) {
     :root {
-        --tile-width: 19px;
-        --tile-height: 33px;
-        --tile-font-size: 24px;
+        --tile-width: 20px;
+        --tile-height: 34px;
+        --tile-font-size: 23px;
     }
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1200px) {
     :root {
-        --tile-width: 16px;
-        --tile-height: 28px;
-        --tile-font-size: 20px;
+        --tile-width: 17px;
+        --tile-height: 29px;
+        --tile-font-size: 19px;
     }
-    .station-title { font-size: 20px; }
+    .station-title { font-size: 21px; }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 950px) {
     :root {
-        --tile-width: 12px;
-        --tile-height: 22px;
-        --tile-font-size: 16px;
+        --tile-width: 13px;
+        --tile-height: 23px;
+        --tile-font-size: 15px;
     }
     .station-housing { padding: 10px; }
 }

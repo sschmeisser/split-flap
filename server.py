@@ -2,12 +2,14 @@
 """
 Solari Split-Flap Board Server
 Serves live transit & flight departures for Bay Area & SJC alongside the web frontend.
+Supports concurrent requests via ThreadingMixIn, dual-stack IPv4/IPv6, and reentrant locking.
 """
 
 import http.server
 import json
 import logging
 import os
+import socket
 import socketserver
 import threading
 import time
@@ -25,7 +27,7 @@ logger = logging.getLogger("SolariServer")
 PORT = int(os.environ.get("PORT", 8080))
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "public")
 
-# Thread-safe global cache
+# Thread-safe global cache with Reentrant Lock (RLock) to prevent self-deadlocks
 CACHE = {
     "bart": [],
     "amtrak": [],
@@ -34,13 +36,13 @@ CACHE = {
     "vta": [],
     "last_updated": 0,
 }
-CACHE_LOCK = threading.Lock()
+CACHE_LOCK = threading.RLock()
+
 
 def update_feeds():
     """Background worker that continuously refreshes live feeds."""
     while True:
         try:
-            logger.info("Refreshing transit & flight feeds...")
             b_data = fetch_bart_departures(limit=10)
             a_data = fetch_amtrak_departures(station_code="SJC", limit=10)
             s_data = fetch_sjc_flights(limit=10)
@@ -59,28 +61,27 @@ def update_feeds():
                 if v_data:
                     CACHE["vta"] = v_data
                 CACHE["last_updated"] = time.time()
-                
+
             logger.info(
-                f"Feeds updated: BART({len(CACHE['bart'])}) Amtrak({len(CACHE['amtrak'])}) "
+                f"Feeds refreshed: BART({len(CACHE['bart'])}) Amtrak({len(CACHE['amtrak'])}) "
                 f"SJC({len(CACHE['sjc'])}) Caltrain({len(CACHE['caltrain'])}) VTA({len(CACHE['vta'])})"
             )
         except Exception as e:
-            logger.error(f"Error updating feeds: {e}")
-            
+            logger.error(f"Error in update_feeds: {e}")
+
         time.sleep(30)
 
 
-def build_unified_board(limit=10):
+def build_unified_board(limit=8):
     """Interleave flights and transit into a single cohesive European Solari board."""
     with CACHE_LOCK:
         combined = []
         combined.extend(CACHE["sjc"][:3])
         combined.extend(CACHE["caltrain"][:3])
-        combined.extend(CACHE["bart"][:3])
+        combined.extend(CACHE["bart"][:2])
         combined.extend(CACHE["amtrak"][:2])
         combined.extend(CACHE["vta"][:2])
 
-    # Sort primarily by departure time
     def parse_time_key(item):
         t = item.get("time", "99:99")
         try:
@@ -99,27 +100,27 @@ class SolariHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
-        
+
         if parsed.path == "/api/departures":
             qs = parse_qs(parsed.query)
             mode = qs.get("mode", ["unified"])[0].lower()
-            limit = int(qs.get("limit", [10])[0])
+            limit = int(qs.get("limit", [8])[0])
 
             with CACHE_LOCK:
                 if mode == "sjc":
-                    data = CACHE["sjc"][:limit]
+                    data = list(CACHE["sjc"][:limit])
                     header = "SAN JOSE INTL AIRPORT (SJC) • DEPARTURES"
                 elif mode == "bart":
-                    data = CACHE["bart"][:limit]
+                    data = list(CACHE["bart"][:limit])
                     header = "BART • BERRYESSA & REGIONAL CONNECTIONS"
                 elif mode == "caltrain":
-                    data = CACHE["caltrain"][:limit]
+                    data = list(CACHE["caltrain"][:limit])
                     header = "CALTRAIN • SAN JOSE DIRIDON TO SAN FRANCISCO"
                 elif mode == "amtrak":
-                    data = CACHE["amtrak"][:limit]
+                    data = list(CACHE["amtrak"][:limit])
                     header = "AMTRAK CALIFORNIA • CAPITOL CORRIDOR & STARLIGHT"
                 elif mode == "vta":
-                    data = CACHE["vta"][:limit]
+                    data = list(CACHE["vta"][:limit])
                     header = "VTA LIGHT RAIL • SANTA CLARA COUNTY HUB"
                 else:
                     data = build_unified_board(limit)
@@ -134,8 +135,9 @@ class SolariHandler(http.server.SimpleHTTPRequestHandler):
 
             body = json.dumps(payload).encode("utf-8")
             self.send_response(200)
-            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Connection", "close")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -149,8 +151,9 @@ class SolariHandler(http.server.SimpleHTTPRequestHandler):
                 }
             body = json.dumps(status).encode("utf-8")
             self.send_response(200)
-            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Connection", "close")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -160,9 +163,21 @@ class SolariHandler(http.server.SimpleHTTPRequestHandler):
         return super().do_GET()
 
 
+class ThreadingDualStackServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+    """Multi-threaded HTTP server supporting both IPv4 and IPv6."""
+    address_family = socket.AF_INET6
+    daemon_threads = True
+
+    def server_bind(self):
+        try:
+            self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        except (AttributeError, OSError):
+            pass
+        super().server_bind()
+
+
 def run_server():
-    # Initial load in foreground so first request has data immediately
-    logger.info("Performing initial data load...")
+    logger.info("Initializing transit & flight data cache...")
     with CACHE_LOCK:
         CACHE["bart"] = fetch_bart_departures(limit=10)
         CACHE["amtrak"] = fetch_amtrak_departures(station_code="SJC", limit=10)
@@ -171,18 +186,30 @@ def run_server():
         CACHE["vta"] = fetch_vta_departures(limit=10)
         CACHE["last_updated"] = time.time()
 
-    # Start background updater
-    t = threading.Thread(target=update_feeds, daemon=True)
-    t.start()
+    # Start background updater thread
+    updater = threading.Thread(target=update_feeds, daemon=True)
+    updater.start()
 
-    socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(("", PORT), SolariHandler) as httpd:
-        logger.info(f"Solari Split-Flap Server running at http://localhost:{PORT}")
-        logger.info("Press Ctrl+C to stop.")
-        try:
-            httpd.serve_forever()
-        except KeyboardInterrupt:
-            logger.info("Shutting down server.")
+    # Start multi-threaded server on dual-stack IPv4/IPv6
+    ThreadingDualStackServer.allow_reuse_address = True
+    server_address = ("::", PORT)
+    try:
+        httpd = ThreadingDualStackServer(server_address, SolariHandler)
+    except Exception as e:
+        logger.warning(f"IPv6 dual-stack bind failed ({e}), falling back to IPv4...")
+        class ThreadingIPv4Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
+            daemon_threads = True
+        ThreadingIPv4Server.allow_reuse_address = True
+        httpd = ThreadingIPv4Server(("0.0.0.0", PORT), SolariHandler)
+
+    logger.info(f"🚀 Solari Split-Flap Server running at http://localhost:{PORT}")
+    logger.info("Press Ctrl+C to stop.")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        logger.info("Shutting down server.")
+    finally:
+        httpd.server_close()
 
 
 if __name__ == "__main__":

@@ -16,7 +16,6 @@ class SplitFlapTile {
         this.currentChar = this.cleanChar(initialChar);
         this.targetChar = this.currentChar;
         this.isFlipping = false;
-        this.stepDelayMs = 60; // Base speed per flap step
         
         this.initDom();
     }
@@ -31,95 +30,84 @@ class SplitFlapTile {
         this.el = document.createElement('div');
         this.el.className = 'flap-tile';
         this.el.innerHTML = `
-            <div class="flap flap-upper flap-back"><span class="flap-char">${this.currentChar}</span></div>
-            <div class="flap flap-lower flap-back"><span class="flap-char">${this.currentChar}</span></div>
-            <div class="flap flap-upper flap-front"><span class="flap-char">${this.currentChar}</span></div>
-            <div class="flap flap-lower flap-front"><span class="flap-char">${this.currentChar}</span></div>
-            <div class="flap-notch-left"></div>
-            <div class="flap-notch-right"></div>
-            <div class="flap-divider"></div>
+            <div class="flap-half top"><span class="top-char">${this.currentChar}</span></div>
+            <div class="flap-half bottom"><span class="bottom-char">${this.currentChar}</span></div>
+            <div class="flap-flipper"><span class="flipper-char">${this.currentChar}</span></div>
+            <div class="flap-seam"></div>
+            <div class="flap-hinge left"></div>
+            <div class="flap-hinge right"></div>
         `;
         this.container.appendChild(this.el);
 
-        this.backUpper = this.el.querySelector('.flap-upper.flap-back .flap-char');
-        this.backLower = this.el.querySelector('.flap-lower.flap-back .flap-char');
-        this.frontUpper = this.el.querySelector('.flap-upper.flap-front');
-        this.frontLower = this.el.querySelector('.flap-lower.flap-front');
-        this.frontUpperChar = this.frontUpper.querySelector('.flap-char');
-        this.frontLowerChar = this.frontLower.querySelector('.flap-char');
+        this.topSpan = this.el.querySelector('.top-char');
+        this.bottomSpan = this.el.querySelector('.bottom-char');
+        this.flipper = this.el.querySelector('.flap-flipper');
+        this.flipperSpan = this.el.querySelector('.flipper-char');
     }
 
-    setChar(targetChar, delayMs = 0) {
-        this.targetChar = this.cleanChar(targetChar);
-        if (this.targetChar === this.currentChar && !this.isFlipping) {
+    setChar(char, delayMs = 0) {
+        const target = this.cleanChar(char);
+        if (target === this.currentChar && !this.isFlipping) {
             return;
         }
 
+        this.targetChar = target;
         if (delayMs > 0) {
-            setTimeout(() => this.startFlipping(), delayMs);
+            setTimeout(() => this.startFlip(), delayMs);
         } else {
-            this.startFlipping();
+            this.startFlip();
         }
     }
 
-    startFlipping() {
+    startFlip() {
         if (this.isFlipping) return;
         this.isFlipping = true;
-        this.flipNext();
-    }
 
-    getNextChar(char) {
-        const idx = FLAP_CHARS.indexOf(char);
-        return FLAP_CHARS[(idx + 1) % FLAP_CHARS.length];
-    }
-
-    flipNext() {
-        if (this.currentChar === this.targetChar) {
-            this.isFlipping = false;
-            return;
+        // Choose 2 to 3 mechanical flutter characters before settling on the target
+        const flutters = [];
+        if (this.currentChar !== this.targetChar) {
+            flutters.push(FLAP_CHARS[Math.floor(Math.random() * (FLAP_CHARS.length - 1)) + 1]);
+            flutters.push(FLAP_CHARS[Math.floor(Math.random() * (FLAP_CHARS.length - 1)) + 1]);
         }
+        flutters.push(this.targetChar);
 
-        const next = this.getNextChar(this.currentChar);
-
-        // Sound trigger
-        if (window.solariAudio) {
-            window.solariAudio.playFlap();
-        }
-
-        // Set up next character in the background
-        this.backUpper.textContent = next;
-        this.backLower.textContent = next;
-        this.frontUpperChar.textContent = this.currentChar;
-        this.frontLowerChar.textContent = this.currentChar;
-
-        // Trigger CSS 3D flip animation
-        this.el.classList.add('flipping');
-
-        // Halfway through rotation, update the lower front flap
-        const flipDuration = this.stepDelayMs;
-        setTimeout(() => {
-            this.frontLowerChar.textContent = next;
-        }, flipDuration * 0.45);
-
-        // End of step
-        setTimeout(() => {
-            this.currentChar = next;
-            this.frontUpperChar.textContent = next;
-            this.el.classList.remove('flipping');
-
-            // Continue stepping toward target
-            if (this.currentChar !== this.targetChar) {
-                // Accelerate slightly if distance is long
-                this.flipNext();
-            } else {
+        let step = 0;
+        const stepNext = () => {
+            if (step >= flutters.length) {
+                this.currentChar = this.targetChar;
+                this.topSpan.textContent = this.targetChar;
+                this.bottomSpan.textContent = this.targetChar;
+                this.flipper.classList.remove('flip-anim');
                 this.isFlipping = false;
+                return;
             }
-        }, flipDuration);
+
+            const nextChar = flutters[step++];
+
+            if (window.solariAudio) {
+                window.solariAudio.playFlap();
+            }
+
+            // Prepare flipper with current char folding down
+            this.flipperSpan.textContent = this.currentChar;
+            this.topSpan.textContent = nextChar;
+            this.bottomSpan.textContent = nextChar;
+
+            // Trigger CSS 3D folding animation with forced reflow
+            this.flipper.classList.remove('flip-anim');
+            void this.flipper.offsetWidth;
+            this.flipper.classList.add('flip-anim');
+
+            this.currentChar = nextChar;
+            setTimeout(stepNext, 50);
+        };
+
+        stepNext();
     }
 }
 
 class SplitFlapRow {
-    constructor(container, length = 48) {
+    constructor(container, length = 51) {
         this.container = container;
         this.length = length;
         this.tiles = [];
@@ -140,15 +128,14 @@ class SplitFlapRow {
         const padded = (text || '').padEnd(this.length, ' ').slice(0, this.length);
         for (let i = 0; i < this.length; i++) {
             const char = padded[i];
-            // Stagger each tile slightly for the classic ripple wave effect
-            const staggerDelay = staggerBaseMs + (i * 22) + (Math.random() * 25);
+            const staggerDelay = staggerBaseMs + (i * 18) + (Math.random() * 20);
             this.tiles[i].setChar(char, staggerDelay);
         }
     }
 }
 
 class SplitFlapBoard {
-    constructor(containerId, rowCount = 8, colCount = 48) {
+    constructor(containerId, rowCount = 8, colCount = 51) {
         this.container = document.getElementById(containerId);
         this.rowCount = rowCount;
         this.colCount = colCount;
@@ -166,8 +153,7 @@ class SplitFlapBoard {
     updateRows(rowStrings) {
         for (let r = 0; r < this.rowCount; r++) {
             const text = rowStrings[r] || '';
-            // Stagger each row slightly (row wave)
-            const rowStagger = r * 80;
+            const rowStagger = r * 75;
             this.rows[r].setText(text, rowStagger);
         }
     }
