@@ -1,24 +1,42 @@
-# Solari Split-Flap Board • Bay Area Transit & SJC Flight Hub
+# Solari Split-Flap Display Board
 
-An authentic European train station split-flap (Solari di Udine style) display board, wired to live transit and aviation feeds:
-- ✈️ **SJC Airport Flights**: Live aircraft tracked in the San Jose airspace using OpenSky Network ADS-B telemetry, mapped with real carrier flight codes, destinations, and gates.
-- 🚆 **Caltrain**: Real-time scheduled electric train departures from San Jose Diridon towards San Francisco (Express, Limited, Local).
-- 🚇 **BART**: Official live BART API feed showing train lines, destinations, platforms, and minutes away.
-- 🚂 **Amtrak California**: Real-time Capitol Corridor & Coast Starlight trains at San Jose Diridon (`SJC`) via Amtraker API.
-- 🚊 **VTA Light Rail**: Santa Clara County Blue, Green, and Orange lines serving Silicon Valley.
+An authentic mechanical split-flap (Solari di Udine style) display board, featuring dual station hubs:
+1. **🇺🇸 San Jose Regional Hub**: Live feeds for SJC Airport, Caltrain Diridon, BART Berryessa, Amtrak Diridon, ACE Train, and VTA Branham & Bus 64B.
+2. **🇩🇪 Nürnberg Hauptbahnhof**: Authentic Deutsche Bahn timetable (ICE, IC, RE, RB, S-Bahn Nürnberg) with German CET/CEST clock and terminology.
 
 ---
 
-## Features
-- **Authentic Split-Flap Mechanics**: Individual 3D character flaps with mechanical flap dividers, side hinge notches, realistic drum stepping, and cascading wave animations.
-- **Procedural Mechanical Audio**: Web Audio synthesizer recreating the organic crisp plastic/metal "clack-clack-clack" sound of real Solari flaps without external audio files.
-- **Auto-Cycling Mode**: Automatically cycles between the Unified Hub, SJC Flights, Caltrain, BART, Amtrak, and VTA every 25 seconds.
-- **Kiosk & Screen Saver Ready**: Auto-hides mouse cursor and overlay controls after 3.5 seconds of inactivity. Press `F` for instant full screen.
-- **Keyboard Shortcuts**:
-  - `F`: Toggle Fullscreen
-  - `M`: Toggle Sound Mute / Unmute
-  - `Space`: Advance to next transit stream
-  - `1-6`: Jump directly to a stream (1: Unified, 2: SJC, 3: Caltrain, 4: BART, 5: Amtrak, 6: VTA)
+## Key Features
+
+- **Authentic Split-Flap Mechanics**: 12 rows × 52 columns matrix with 3D folding flaps, mechanical seam lines, side hinge notches, and staggered cascading animations.
+- **Genuine Sampled Audio**: Authentic recordings of mechanical split-flap drums (`click.wav`, `td_clack.wav`, and `board_cascade.mp3`) with randomized pitch variation (`playbackRate = 0.93 - 1.07`).
+- **Airport Chime & Female Voice Announcements**: When SJC flights enter "BOARDING" status, a soothing female voice announces *"Now boarding: [Airline] flight [Number] with service to [Destination], at Gate [Gate]"* preceded by an authentic 2-tone airport terminal chime (strictly limited to max twice per flight).
+- **Dual Station Hub Toggle**:
+  - Switch instantly between **San Jose Regional Hub** and **Nürnberg Hauptbahnhof** via header toggle or key `H`.
+  - Automatically switches clock time zone (`America/Los_Angeles` vs `Europe/Berlin`).
+- **San Jose Regional Hub Feeds**:
+  - ✈️ **SJC Airport Flights**: Real-time ADS-B flight tracking with recognizable airline branding (`SW`, `FRONT`, `ALASKA`, `DELTA`, `AMER`, `UNITED`) and full gate numbers (`GT 21`, `GT 29`).
+  - 🚆 **Caltrain**: San Jose Diridon departures and arrivals to/from San Francisco.
+  - 🚇 **BART**: Live Berryessa / North San Jose departures and inbound arrivals.
+  - 🚂 **Amtrak California**: Real-time Capitol Corridor & Coast Starlight at Diridon (filters past trains).
+  - 🚆 **ACE Train**: Altamont Corridor Express trains at Diridon (`ACE 04`, `ACE 06`, `ACE 08`, `ACE 10`).
+  - 🚊 **VTA Transit**: Branham Station Blue Line Light Rail and Bus 64B along Meridian Ave (`M-B&C`), consolidated to one row per bus.
+- **Nürnberg Hauptbahnhof Feeds**:
+  - 🚄 **Fernverkehr**: ICE 704 (Berlin), ICE 583 (München), ICE 528 (Frankfurt), ICE 28 (Wien), ICE 886 (Hamburg), RJX 67 (Budapest).
+  - 🚆 **Regionalverkehr**: RE 19 (Sonneberg), RE 40 (Schwandorf), RE 58 (Würzburg), RE 30 (Bayreuth/Hof).
+  - 🚊 **S-Bahn Nürnberg**: S1 (Bamberg), S2 (Roth), S3 (Neumarkt), S4 (Dombühl).
+- **Kiosk & Screen Saver Ready**: Auto-hides mouse cursor and overlay controls after 4 seconds of inactivity.
+
+---
+
+## Keyboard Shortcuts
+
+- `H`: Toggle between San Jose Hub and Nürnberg Hauptbahnhof
+- `F`: Toggle Fullscreen
+- `M`: Toggle Mechanical Sound On/Off
+- `V`: Toggle Flight Voice Announcements On/Off
+- `T`: Test Mechanical Flap Clack
+- `1-7`: Switch individual transit modes
 
 ---
 
@@ -28,7 +46,7 @@ An authentic European train station split-flap (Solari di Udine style) display b
 ```bash
 ./run.sh
 ```
-Or manually:
+Or with Python:
 ```bash
 .venv/bin/python server.py
 ```
@@ -38,7 +56,7 @@ Open **[http://localhost:8080](http://localhost:8080)** in your browser.
 
 ## Running as a macOS Screen Saver
 
-You can display this live board directly as your native Mac screensaver using **WebViewScreenSaver**:
+Display this live board as your native Mac screensaver using **WebViewScreenSaver**:
 
 1. **Install WebViewScreenSaver via Homebrew**:
    ```bash
@@ -46,18 +64,4 @@ You can display this live board directly as your native Mac screensaver using **
    ```
 2. Open macOS **System Settings** > **Screen Saver**.
 3. Select **WebViewScreenSaver** and click **Options**.
-4. Add the URL:
-   ```
-   http://localhost:8080
-   ```
-5. Whenever your Mac goes idle, your monitor will turn into a live European split-flap departures board!
-
----
-
-## Running in Fullscreen / Kiosk Mode on a Dedicated Monitor
-
-To launch Google Chrome directly in fullscreen kiosk mode (ideal for a secondary monitor or TV display):
-```bash
-open -a "Google Chrome" --args --kiosk --incognito http://localhost:8080
-```
-To exit kiosk mode, press `Command + W` or `Command + Q`.
+4. Add the URL: `http://localhost:8080`

@@ -2,3 +2,10 @@
 __pycache__/
 *.pyc
 .DS_Store
+node_modules/
+*.raw
+sample_frame.png
+test_cropped_frame.png
+public/screenshot_*.png
+*.mp4
+!demo.mp4

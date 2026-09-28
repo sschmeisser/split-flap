@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solari Split-Flap Board • Bay Area & SJC Hub</title>
-    <link rel="stylesheet" href="css/solari.css">
+    <title>Split-Flap Board • San Jose Regional Hub</title>
+    <link rel="stylesheet" href="css/solari.css?v=4">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%231a1b20'/><text y='70' x='20' font-size='65' fill='%23f5b722' font-family='sans-serif' font-weight='bold'>S</text></svg>">
 </head>
 <body>
@@ -20,20 +20,23 @@
         <!-- Board Top Header -->
         <header class="board-header-bar">
             <div class="station-identity">
-                <span class="solari-logo">Solari</span>
-                <h1 class="station-title" id="stationTitle">BAY AREA REGIONAL HUB • ALL SERVICES BY TIME</h1>
+                <div class="hub-switcher" role="group" aria-label="Select Station Hub">
+                    <button class="hub-toggle-btn active" data-hub="sanjose" title="Switch to San Jose Regional Hub (Key: H)">🇺🇸 San Jose</button>
+                    <button class="hub-toggle-btn" data-hub="nuernberg" title="Switch to Nürnberg Hauptbahnhof (Key: H)">🇩🇪 Nürnberg Hbf</button>
+                </div>
+                <h1 class="station-title" id="stationTitle">SAN JOSE REGIONAL HUB • ALL SERVICES BY TIME</h1>
             </div>
             <div class="station-clock-box">
                 <div class="live-indicator">
                     <span class="live-dot"></span>
-                    <span>Live</span>
+                    <span id="liveStatusText">Live</span>
                 </div>
                 <div class="station-clock" id="stationClock">12:00:00</div>
             </div>
         </header>
 
         <!-- Column Headers -->
-        <div class="column-headers" aria-hidden="true">
+        <div class="column-headers" id="columnHeaders" aria-hidden="true">
             <span class="col-hdr-typ">TYP</span>
             <span class="col-hdr-time">TIME</span>
             <span class="col-hdr-service">SERVICE</span>
@@ -49,12 +52,13 @@
 
         <!-- Board Footer Info Bar -->
         <footer class="board-info-bar">
-            <div class="agency-status-pills">
+            <div class="agency-status-pills" id="agencyPills">
                 <div class="agency-pill"><span class="agency-pill-dot"></span> SJC Airspace (All Flights)</div>
                 <div class="agency-pill"><span class="agency-pill-dot"></span> BART Berryessa Hub</div>
                 <div class="agency-pill"><span class="agency-pill-dot"></span> Caltrain Diridon Hub</div>
                 <div class="agency-pill"><span class="agency-pill-dot"></span> Amtrak Diridon Hub</div>
-                <div class="agency-pill"><span class="agency-pill-dot"></span> VTA Branham Station</div>
+                <div class="agency-pill"><span class="agency-pill-dot"></span> ACE Train Diridon</div>
+                <div class="agency-pill"><span class="agency-pill-dot"></span> VTA Branham & 64B Meridian</div>
             </div>
             <div id="lastUpdatedText">Live Feed Active</div>
         </footer>
@@ -63,25 +67,27 @@
 
     <!-- Controls Overlay (Fades out when mouse is idle) -->
     <nav class="controls-overlay" aria-label="Board Controls">
-        <div class="mode-selector">
+        <div class="mode-selector" id="modeSelector">
             <button class="mode-btn active" data-mode="unified">Unified Hub (By Time)</button>
             <button class="mode-btn" data-mode="sjc">SJC Flights</button>
             <button class="mode-btn" data-mode="caltrain">Caltrain Diridon</button>
             <button class="mode-btn" data-mode="bart">BART Berryessa</button>
             <button class="mode-btn" data-mode="amtrak">Amtrak Diridon</button>
-            <button class="mode-btn" data-mode="vta">VTA Branham</button>
+            <button class="mode-btn" data-mode="ace">ACE Train</button>
+            <button class="mode-btn" data-mode="vta">VTA Branham & 64B</button>
         </div>
         <div class="tool-actions">
+            <button class="icon-btn active" id="voiceToggleBtn" title="Toggle flight boarding voice (Key: V)">📢 Voice: ON</button>
             <button class="icon-btn" id="testSoundBtn" title="Test mechanical flap sound (Key: T)">🔊 Test Clack</button>
             <button class="icon-btn active" id="soundToggleBtn" title="Toggle mechanical flap sound (Key: M)">🔊 Sound: ON</button>
-            <button class="icon-btn" id="cycleToggleBtn" title="Auto-cycles through modes every 25s">⏸ Auto-Cycle: OFF</button>
             <button class="icon-btn" id="fullscreenBtn" title="Toggle Fullscreen (Key: F)">⛶ Fullscreen</button>
         </div>
     </nav>
 
-    <!-- Split-Flap Scripts -->
-    <script src="js/flap-audio.js"></script>
-    <script src="js/split-flap.js"></script>
-    <script src="js/app.js"></script>
+    <!-- Split-Flap Scripts with Cache Busting -->
+    <script src="js/flap-audio.js?v=4"></script>
+    <script src="js/flight-announcer.js?v=4"></script>
+    <script src="js/split-flap.js?v=4"></script>
+    <script src="js/app.js?v=4"></script>
 </body>
 </html>
