@@ -7,15 +7,15 @@ logger = logging.getLogger(__name__)
 
 # Human-recognizable airline brand abbreviations instead of obscure 2-letter IATA codes
 AIRLINE_MAP = {
-    "SWA": ("SW", "SOUTHWEST", ["SAN DIEGO", "LAS VEGAS", "BURBANK", "PHOENIX", "DENVER", "SEATTLE", "HONOLULU", "CHICAGO MDW", "AUSTIN", "ORANGE COUNTY"]),
-    "ASA": ("ALASKA", "ALASKA", ["SEATTLE", "PORTLAND", "SAN DIEGO", "AUSTIN", "BOISE", "LOS CABOS", "KONA"]),
-    "AAL": ("AMER", "AMERICAN", ["DALLAS DFW", "PHOENIX", "CHARLOTTE", "CHICAGO ORD", "MIAMI"]),
-    "DAL": ("DELTA", "DELTA", ["SALT LAKE CITY", "ATLANTA", "MINNEAPOLIS", "SEATTLE", "DETROIT"]),
-    "UAL": ("UNITED", "UNITED", ["DENVER", "CHICAGO ORD", "HOUSTON IAH"]),
-    "FFT": ("FRONT", "FRONTIER", ["LAS VEGAS", "DENVER", "PHOENIX"]),
-    "SKW": ("SKYWEST", "SKYWEST", ["SALT LAKE CITY", "LOS ANGELES", "SEATTLE"]),
-    "HAL": ("HAWAII", "HAWAIIAN", ["HONOLULU", "KAHULUI"]),
-    "VOI": ("VOLARIS", "VOLARIS", ["GUADALAJARA", "MEXICO CITY", "MORELIA"]),
+    "SWA": ("SW", "Southwest Airlines", ["SAN DIEGO", "LAS VEGAS", "BURBANK", "PHOENIX", "DENVER", "SEATTLE", "HONOLULU", "CHICAGO MDW", "AUSTIN", "ORANGE COUNTY"]),
+    "ASA": ("ALASKA", "Alaska Airlines", ["SEATTLE", "PORTLAND", "SAN DIEGO", "AUSTIN", "BOISE", "LOS CABOS", "KONA"]),
+    "AAL": ("AMER", "American Airlines", ["DALLAS DFW", "PHOENIX", "CHARLOTTE", "CHICAGO ORD", "MIAMI"]),
+    "DAL": ("DELTA", "Delta Air Lines", ["SALT LAKE CITY", "ATLANTA", "MINNEAPOLIS", "SEATTLE", "DETROIT"]),
+    "UAL": ("UNITED", "United Airlines", ["DENVER", "CHICAGO ORD", "HOUSTON IAH"]),
+    "FFT": ("FRONT", "Frontier Airlines", ["LAS VEGAS", "DENVER", "PHOENIX"]),
+    "SKW": ("SKYWEST", "SkyWest Airlines", ["SALT LAKE CITY", "LOS ANGELES", "SEATTLE"]),
+    "HAL": ("HAWAII", "Hawaiian Airlines", ["HONOLULU", "KAHULUI"]),
+    "VOI": ("VOLARIS", "Volaris", ["GUADALAJARA", "MEXICO CITY", "MORELIA"]),
 }
 
 def format_flight_service(brand_code, flight_num):
@@ -106,9 +106,10 @@ def fetch_sjc_flights(limit=12):
                     "type": m_type,
                     "time": dep_time,
                     "service": format_flight_service(brand_code, flight_num),
-                    "destination": target[:16],
+                    "airline": airline_name,
+                    "destination": target[:15],
                     "track": gate[:5],
-                    "status": status[:8],
+                    "status": status[:9],
                     "minutes_away": mins_offset,
                     "agency": "SJC"
                 })
@@ -118,26 +119,27 @@ def fetch_sjc_flights(limit=12):
     # Baseline active SJC flight roster using recognizable airline names
     if len(records) < 8:
         sample_flights = [
-            ("ARR", "SW",     "2684", "FROM SAN DIEGO", "GT 24", 5, "FINAL"),
-            ("DEP", "ALASKA", "657",  "SEATTLE (SEA)",   "GT 12", 12, "BOARDING"),
-            ("ARR", "UAL",    "1453", "FROM DENVER",     "GT 14", 18, "APPROACH"),
-            ("DEP", "SW",     "3625", "AUSTIN (AUS)",    "GT 22", 24, "ON TIME"),
-            ("ARR", "AMER",   "2834", "FROM DALLAS DFW", "GT 9",  30, "ON TIME"),
-            ("DEP", "DELTA",  "1489", "SALT LAKE CITY",  "GT 7",  38, "ON TIME"),
-            ("ARR", "SW",     "3491", "FROM LAS VEGAS",  "GT 20", 45, "ON TIME"),
-            ("DEP", "FRONT",  "1191", "DENVER (DEN)",    "GT 16", 52, "BOARDING"),
-            ("ARR", "ALASKA", "1315", "FROM PORTLAND",   "GT 11", 58, "ON TIME"),
-            ("DEP", "SW",     "719",  "BURBANK (BUR)",   "GT 25", 65, "ON TIME"),
+            ("ARR", "SW",     "Southwest Airlines", "2684", "FROM SAN DIEGO", "GT 24", 5, "FINAL"),
+            ("DEP", "ALASKA", "Alaska Airlines",    "657",  "SEATTLE (SEA)",   "GT 12", 12, "BOARDING"),
+            ("ARR", "UAL",    "United Airlines",    "1453", "FROM DENVER",     "GT 14", 18, "APPROACH"),
+            ("DEP", "SW",     "Southwest Airlines", "3625", "AUSTIN (AUS)",    "GT 22", 24, "ON TIME"),
+            ("ARR", "AMER",   "American Airlines",  "2834", "FROM DALLAS DFW", "GT 9",  30, "ON TIME"),
+            ("DEP", "DELTA",  "Delta Air Lines",    "1489", "SALT LAKE CITY",  "GT 7",  38, "ON TIME"),
+            ("ARR", "SW",     "Southwest Airlines", "3491", "FROM LAS VEGAS",  "GT 20", 45, "ON TIME"),
+            ("DEP", "FRONT",  "Frontier Airlines",  "1191", "DENVER (DEN)",    "GT 16", 52, "BOARDING"),
+            ("ARR", "ALASKA", "Alaska Airlines",    "1315", "FROM PORTLAND",   "GT 11", 58, "ON TIME"),
+            ("DEP", "SW",     "Southwest Airlines", "719",  "BURBANK (BUR)",   "GT 25", 65, "ON TIME"),
         ]
-        for m_type, brand, num, target, gate, mins, status in sample_flights:
+        for m_type, brand, full_airline, num, target, gate, mins, status in sample_flights:
             t_str = (now + timedelta(minutes=mins)).strftime("%H:%M")
             records.append({
                 "type": m_type,
                 "time": t_str,
                 "service": format_flight_service(brand, num),
-                "destination": target[:16],
+                "airline": full_airline,
+                "destination": target[:15],
                 "track": gate[:5],
-                "status": status[:8],
+                "status": status[:9],
                 "minutes_away": mins,
                 "agency": "SJC"
             })
