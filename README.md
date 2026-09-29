@@ -15,12 +15,17 @@ An authentic mechanical split-flap (Solari di Udine style) display board, featur
   - Switch instantly between **San Jose Regional Hub** and **Nürnberg Hauptbahnhof** via header toggle or key `H`.
   - Automatically switches clock time zone (`America/Los_Angeles` vs `Europe/Berlin`).
 - **San Jose Regional Hub Feeds**:
-  - ✈️ **SJC Airport Flights**: Real-time ADS-B flight tracking with recognizable airline branding (`SW`, `FRONT`, `ALASKA`, `DELTA`, `AMER`, `UNITED`) and full gate numbers (`GT 21`, `GT 29`).
+  - ✈️ **SJC Airport Flights**: Official Mineta San José International Airport live FIDS data integration (`flysanjose.com`) with recognizable airline branding (`SW`, `ALASKA`, `AMER`, `DELTA`, `UNITED`, `FRONT`), real flight numbers, gates (`GT 1` - `GT 36`), and live statuses (`BOARDING`, `DELAYED`, `FINAL`, `DEPARTED`, `ARRIVED`).
   - 🚆 **Caltrain**: San Jose Diridon departures and arrivals to/from San Francisco.
   - 🚇 **BART**: Live Berryessa / North San Jose departures and inbound arrivals.
   - 🚂 **Amtrak California**: Real-time Capitol Corridor & Coast Starlight at Diridon (filters past trains).
   - 🚆 **ACE Train**: Altamont Corridor Express trains at Diridon (`ACE 04`, `ACE 06`, `ACE 08`, `ACE 10`).
   - 🚊 **VTA Transit**: Branham Station Blue Line Light Rail and Bus 64B along Meridian Ave (`M-B&C`), consolidated to one row per bus.
+- **Interactive Live Transit Radar & Telematics**:
+  - Picture-in-picture live map with Esri Dark Canvas base & label layers.
+  - Realistic vehicle icons, real-time speed/heading telemetry, highlighted road & rail corridors, and smooth cinematic 5-second zoom.
+  - Persistent line highlighting for 5 seconds upon returning to the board.
+  - Strict rate-limiting (maximum 2 animations per minute, only on state changes).
 - **Nürnberg Hauptbahnhof Feeds**:
   - 🚄 **Fernverkehr**: ICE 704 (Berlin), ICE 583 (München), ICE 528 (Frankfurt), ICE 28 (Wien), ICE 886 (Hamburg), RJX 67 (Budapest).
   - 🚆 **Regionalverkehr**: RE 19 (Sonneberg), RE 40 (Schwandorf), RE 58 (Würzburg), RE 30 (Bayreuth/Hof).
@@ -65,3 +70,9 @@ Display this live board as your native Mac screensaver using **WebViewScreenSave
 2. Open macOS **System Settings** > **Screen Saver**.
 3. Select **WebViewScreenSaver** and click **Options**.
 4. Add the URL: `http://localhost:8080`
+
+---
+
+## License
+
+Open source under the [MIT License](LICENSE). Copyright (c) 2026 Stefan Schmeisser.

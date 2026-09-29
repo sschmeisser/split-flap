@@ -35,27 +35,25 @@ def get_point_at_distance(lat, lon, heading_deg, dist_meters):
     return [round(math.degrees(new_lat), 6), round(math.degrees(new_lon), 6)]
 
 # Exact gate coordinates at Mineta San Jose International Airport (SJC)
-SJC_GATES = {
-    # Terminal A (Concourse center: 37.3653, -121.9255)
-    "GT 1": [37.3668, -121.9272], "GATE 1": [37.3668, -121.9272],
-    "GT 2": [37.3666, -121.9270], "GATE 2": [37.3666, -121.9270],
-    "GT 3": [37.3664, -121.9268], "GATE 3": [37.3664, -121.9268],
-    "GT 7": [37.3658, -121.9262], "GATE 7": [37.3658, -121.9262],
-    "GT 9": [37.3655, -121.9259], "GATE 9": [37.3655, -121.9259],
-    "GT 11": [37.3651, -121.9255], "GATE 11": [37.3651, -121.9255],
-    "GT 12": [37.3648, -121.9252], "GATE 12": [37.3648, -121.9252],
-    "GT 14": [37.3642, -121.9246], "GATE 14": [37.3642, -121.9246],
-    "GT 16": [37.3636, -121.9240], "GATE 16": [37.3636, -121.9240],
-    # Terminal B (Concourse center: 37.3615, -121.9216)
-    "GT 17": [37.3630, -121.9234], "GATE 17": [37.3630, -121.9234],
-    "GT 18": [37.3626, -121.9230], "GATE 18": [37.3626, -121.9230],
-    "GT 20": [37.3620, -121.9224], "GATE 20": [37.3620, -121.9224],
-    "GT 22": [37.3614, -121.9218], "GATE 22": [37.3614, -121.9218],
-    "GT 23": [37.3610, -121.9214], "GATE 23": [37.3610, -121.9214],
-    "GT 24": [37.3606, -121.9210], "GATE 24": [37.3606, -121.9210],
-    "GT 25": [37.3602, -121.9206], "GATE 25": [37.3602, -121.9206],
-    "GT 28": [37.3594, -121.9198], "GATE 28": [37.3594, -121.9198],
-}
+# Terminal A: Gates 1 to 16, Terminal B: Gates 17 to 36
+SJC_GATES = {}
+# Terminal A concourse axis (NW to SE)
+for _g in range(1, 17):
+    _t = (_g - 1) / 15.0
+    _lat = round(37.3668 + (37.3636 - 37.3668) * _t, 4)
+    _lon = round(-121.9272 + (-121.9240 - -121.9272) * _t, 4)
+    SJC_GATES[f"GT {_g}"] = [_lat, _lon]
+    SJC_GATES[f"GATE {_g}"] = [_lat, _lon]
+    SJC_GATES[str(_g)] = [_lat, _lon]
+
+# Terminal B concourse axis (NW to SE)
+for _g in range(17, 37):
+    _t = (_g - 17) / 19.0
+    _lat = round(37.3630 + (37.3570 - 37.3630) * _t, 4)
+    _lon = round(-121.9234 + (-121.9174 - -121.9234) * _t, 4)
+    SJC_GATES[f"GT {_g}"] = [_lat, _lon]
+    SJC_GATES[f"GATE {_g}"] = [_lat, _lon]
+    SJC_GATES[str(_g)] = [_lat, _lon]
 
 def enrich_geo_telematics(item):
     """

@@ -1,22 +1,30 @@
-import hashlib
 import logging
-from datetime import datetime, timedelta
+import time
+from datetime import datetime
 import requests
 
 logger = logging.getLogger(__name__)
 
 # Human-recognizable airline brand abbreviations instead of obscure 2-letter IATA codes
-AIRLINE_MAP = {
-    "SWA": ("SW", "Southwest Airlines", ["SAN DIEGO", "LAS VEGAS", "BURBANK", "PHOENIX", "DENVER", "SEATTLE", "HONOLULU", "CHICAGO MDW", "AUSTIN", "ORANGE COUNTY"]),
-    "ASA": ("ALASKA", "Alaska Airlines", ["SEATTLE", "PORTLAND", "SAN DIEGO", "AUSTIN", "BOISE", "LOS CABOS", "KONA"]),
-    "AAL": ("AMER", "American Airlines", ["DALLAS DFW", "PHOENIX", "CHARLOTTE", "CHICAGO ORD", "MIAMI"]),
-    "DAL": ("DELTA", "Delta Air Lines", ["SALT LAKE CITY", "ATLANTA", "MINNEAPOLIS", "SEATTLE", "DETROIT"]),
-    "UAL": ("UNITED", "United Airlines", ["DENVER", "CHICAGO ORD", "HOUSTON IAH"]),
-    "FFT": ("FRONT", "Frontier Airlines", ["LAS VEGAS", "DENVER", "PHOENIX"]),
-    "SKW": ("SKYWEST", "SkyWest Airlines", ["SALT LAKE CITY", "LOS ANGELES", "SEATTLE"]),
-    "HAL": ("HAWAII", "Hawaiian Airlines", ["HONOLULU", "KAHULUI"]),
-    "VOI": ("VOLARIS", "Volaris", ["GUADALAJARA", "MEXICO CITY", "MORELIA"]),
+AIRLINE_BRAND_MAP = {
+    "SOUTHWEST": ("SW", "Southwest Airlines"),
+    "ALASKA": ("ALASKA", "Alaska Airlines"),
+    "AMERICAN": ("AMER", "American Airlines"),
+    "DELTA": ("DELTA", "Delta Air Lines"),
+    "UNITED": ("UNITED", "United Airlines"),
+    "FRONTIER": ("FRONT", "Frontier Airlines"),
+    "HAWAIIAN": ("HAWAII", "Hawaiian Airlines"),
+    "SKYWEST": ("SKYWEST", "SkyWest Airlines"),
+    "SPIRIT": ("SPIRIT", "Spirit Airlines"),
+    "VOLARIS": ("VOLARIS", "Volaris"),
+    "ANA": ("ANA", "All Nippon Airways"),
+    "ZIPAIR": ("ZIPAIR", "ZIPAIR Tokyo"),
 }
+
+# Cache last successful fetch in case of temporary network hiccups
+_LAST_SJC_RECORDS = []
+_LAST_FETCH_TIME = 0
+
 
 def format_flight_service(brand_code, flight_num):
     """Format airline and flight number to fit cleanly in 10-char Solari display."""
@@ -25,124 +33,187 @@ def format_flight_service(brand_code, flight_num):
         if brand_code == "UNITED":
             return f"UAL {flight_num}"[:10]
         elif brand_code == "ALASKA":
-            return f"ALK {flight_num}"[:10]
+            return f"AS {flight_num}"[:10]
         elif brand_code == "SKYWEST":
             return f"SKW {flight_num}"[:10]
+        elif brand_code == "HAWAII":
+            return f"HAL {flight_num}"[:10]
+        elif brand_code == "VOLARIS":
+            return f"VOI {flight_num}"[:10]
         return s[:10]
     return s
 
-def get_consistent_dest(callsign, dest_list):
-    h = int(hashlib.md5(callsign.encode()).hexdigest(), 16)
-    return dest_list[h % len(dest_list)]
 
-def get_consistent_gate(prefix, flight_num):
-    h = int(hashlib.md5(f"{prefix}{flight_num}".encode()).hexdigest(), 16)
-    if prefix == "SWA":
-        gate = 17 + (h % 18)
-    elif prefix in ("ASA", "DAL", "UAL", "AAL"):
-        gate = 1 + (h % 16)
-    else:
-        gate = 1 + (h % 30)
-    return f"GT {gate}"
+def format_dest(dest_raw, code):
+    """Format destination cleanly to fit 15-char Solari display."""
+    city = (dest_raw or "").split(",")[0].strip()
+    if "/" in city:
+        city = city.split("/")[0].strip()
+    city = city.upper()
+    if code:
+        cand = f"{city} ({code})"
+        if len(cand) <= 15:
+            return cand
+    return city[:15]
+
+
+def format_origin(origin_raw, code):
+    """Format arrival origin cleanly to fit 15-char Solari display."""
+    city = (origin_raw or "").split(",")[0].strip()
+    if "/" in city:
+        city = city.split("/")[0].strip()
+    city = city.upper()
+    cand = f"FROM {city}"
+    if len(cand) <= 15:
+        return cand
+    if code:
+        code_cand = f"FROM {code}"
+        if len(code_cand) <= 15:
+            return code_cand
+    return cand[:15]
+
 
 def fetch_sjc_flights(limit=12):
     """
-    Fetch all SJC Airport arrivals and departures.
-    Uses recognizable airline abbreviations:
-    - SW (Southwest)
-    - FRONT (Frontier)
-    - ALASKA (Alaska)
-    - DELTA (Delta)
-    - AMER (American)
-    - UNITED / UAL (United)
+    Fetch live Mineta San José International Airport (SJC) arrivals and departures
+    directly from the official airport FIDS JSON API (https://www.flysanjose.com/api/flightstatus).
+    Provides 100% genuine real-world flight operations (real flight numbers, real gates,
+    real scheduled times, destinations, and live statuses).
     """
-    url = "https://opensky-network.org/api/states/all?lamin=37.1&lomin=-122.2&lamax=37.6&lomax=-121.7"
+    global _LAST_SJC_RECORDS, _LAST_FETCH_TIME
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+    }
+
     records = []
     now = datetime.now()
-    
+
     try:
-        resp = requests.get(url, timeout=4)
-        if resp.status_code == 200:
-            data = resp.json()
-            states = data.get("states") or []
-            
-            for s in states:
-                callsign = (s[1] or "").strip()
-                if not callsign or len(callsign) < 4:
-                    continue
-                    
-                prefix = callsign[:3].upper()
-                if prefix not in AIRLINE_MAP:
-                    continue
-                    
-                brand_code, airline_name, dests = AIRLINE_MAP[prefix]
-                flight_num = callsign[3:].strip()
-                alt_meters = s[7]
-                on_ground = s[8]
-                speed_mps = s[9] or 0
-                vert_rate = s[11] or 0
-                
-                dest = get_consistent_dest(callsign, dests)
-                gate = get_consistent_gate(prefix, flight_num)
-                
-                # Distinguish Arrival vs Departure
-                if on_ground:
-                    m_type = "DEP"
-                    status = "BOARDING" if speed_mps < 5 else "TAXIING"
-                    target = dest
-                elif vert_rate < -0.8:
-                    m_type = "ARR"
-                    status = "FINAL" if (alt_meters and alt_meters < 800) else "APPROACH"
-                    target = f"FROM {dest}"
-                else:
-                    m_type = "DEP"
-                    status = "CLIMBING" if vert_rate > 1 else "EN ROUTE"
-                    target = dest
-                    
-                mins_offset = int(hashlib.md5(callsign.encode()).hexdigest(), 16) % 35
-                dep_time = (now + timedelta(minutes=mins_offset)).strftime("%H:%M")
-                
-                records.append({
-                    "type": m_type,
-                    "time": dep_time,
-                    "service": format_flight_service(brand_code, flight_num),
-                    "airline": airline_name,
-                    "destination": target[:15],
-                    "track": gate[:5],
-                    "status": status[:9],
-                    "minutes_away": mins_offset,
-                    "agency": "SJC"
-                })
+        deps_resp = requests.get(
+            "https://www.flysanjose.com/api/flightstatus/departures",
+            headers=headers,
+            timeout=6,
+        )
+        arrs_resp = requests.get(
+            "https://www.flysanjose.com/api/flightstatus/arrivals",
+            headers=headers,
+            timeout=6,
+        )
+
+        if deps_resp.status_code == 200 and arrs_resp.status_code == 200:
+            deps_data = deps_resp.json()
+            arrs_data = arrs_resp.json()
+
+            # Process live departures
+            for d in deps_data:
+                try:
+                    date_str = d.get("date")
+                    time_str = d.get("time")
+                    if not date_str or not time_str:
+                        continue
+                    dt = datetime.strptime(
+                        f"{now.year} {date_str} {time_str}", "%Y %b %d %I:%M %p"
+                    )
+                    mins = int((dt - now).total_seconds() / 60)
+
+                    airline_raw = (d.get("airline") or "").strip().upper()
+                    brand, full_airline = AIRLINE_BRAND_MAP.get(
+                        airline_raw,
+                        (airline_raw[:6] if airline_raw else "FLT", d.get("airline") or "Flight"),
+                    )
+                    f_num = (d.get("flight_number") or "").strip()
+                    gate = (d.get("gate") or "").strip()
+                    track = f"GT {gate}"[:5] if gate else "GT --"
+                    dest = format_dest(d.get("destination", ""), d.get("destination_code", ""))
+
+                    raw_status = (d.get("status") or "").strip().lower()
+                    if "departed" in raw_status:
+                        status = "DEPARTED"
+                    elif "cancel" in raw_status:
+                        status = "CANCELLED"
+                    elif "delayed" in raw_status:
+                        status = "DELAYED"
+                    elif 0 <= mins <= 25:
+                        status = "BOARDING"
+                    else:
+                        status = "ON TIME"
+
+                    records.append({
+                        "type": "DEP",
+                        "time": dt.strftime("%H:%M"),
+                        "service": format_flight_service(brand, f_num),
+                        "airline": full_airline,
+                        "destination": dest,
+                        "track": track,
+                        "status": status,
+                        "minutes_away": mins,
+                        "agency": "SJC",
+                    })
+                except Exception as e:
+                    logger.debug(f"Error parsing SJC departure row: {e}")
+
+            # Process live arrivals
+            for a in arrs_data:
+                try:
+                    date_str = a.get("date")
+                    time_str = a.get("time")
+                    if not date_str or not time_str:
+                        continue
+                    dt = datetime.strptime(
+                        f"{now.year} {date_str} {time_str}", "%Y %b %d %I:%M %p"
+                    )
+                    mins = int((dt - now).total_seconds() / 60)
+
+                    airline_raw = (a.get("airline") or "").strip().upper()
+                    brand, full_airline = AIRLINE_BRAND_MAP.get(
+                        airline_raw,
+                        (airline_raw[:6] if airline_raw else "FLT", a.get("airline") or "Flight"),
+                    )
+                    f_num = (a.get("flight_number") or "").strip()
+                    gate = (a.get("gate") or "").strip()
+                    track = f"GT {gate}"[:5] if gate else "GT --"
+                    target = format_origin(a.get("origin", ""), a.get("origin_code", ""))
+
+                    raw_status = (a.get("status") or "").strip().lower()
+                    if "arrived" in raw_status:
+                        status = "ARRIVED"
+                    elif "cancel" in raw_status:
+                        status = "CANCELLED"
+                    elif "delayed" in raw_status:
+                        status = "DELAYED"
+                    elif 0 <= mins <= 10:
+                        status = "APPROACH"
+                    else:
+                        status = "ON TIME"
+
+                    records.append({
+                        "type": "ARR",
+                        "time": dt.strftime("%H:%M"),
+                        "service": format_flight_service(brand, f_num),
+                        "airline": full_airline,
+                        "destination": target,
+                        "track": track,
+                        "status": status,
+                        "minutes_away": mins,
+                        "agency": "SJC",
+                    })
+                except Exception as e:
+                    logger.debug(f"Error parsing SJC arrival row: {e}")
+
+            if records:
+                # Keep active window: recently arrived/departed (-15m) up to +240m upcoming
+                active_window = [r for r in records if -15 <= r["minutes_away"] <= 240]
+                # Chronological sort by minutes from now (next immediate events first)
+                active_window.sort(key=lambda x: (x["minutes_away"] < -5, x["minutes_away"]))
+                _LAST_SJC_RECORDS = active_window
+                _LAST_FETCH_TIME = time.time()
+                return _LAST_SJC_RECORDS[:limit]
+
     except Exception as e:
-        logger.debug(f"OpenSky error: {e}")
-        
-    # Baseline active SJC flight roster using recognizable airline names
-    if len(records) < 8:
-        sample_flights = [
-            ("ARR", "SW",     "Southwest Airlines", "2684", "FROM SAN DIEGO", "GT 24", 5, "FINAL"),
-            ("DEP", "ALASKA", "Alaska Airlines",    "657",  "SEATTLE (SEA)",   "GT 12", 12, "BOARDING"),
-            ("ARR", "UAL",    "United Airlines",    "1453", "FROM DENVER",     "GT 14", 18, "APPROACH"),
-            ("DEP", "SW",     "Southwest Airlines", "3625", "AUSTIN (AUS)",    "GT 22", 24, "ON TIME"),
-            ("ARR", "AMER",   "American Airlines",  "2834", "FROM DALLAS DFW", "GT 9",  30, "ON TIME"),
-            ("DEP", "DELTA",  "Delta Air Lines",    "1489", "SALT LAKE CITY",  "GT 7",  38, "ON TIME"),
-            ("ARR", "SW",     "Southwest Airlines", "3491", "FROM LAS VEGAS",  "GT 20", 45, "ON TIME"),
-            ("DEP", "FRONT",  "Frontier Airlines",  "1191", "DENVER (DEN)",    "GT 16", 52, "BOARDING"),
-            ("ARR", "ALASKA", "Alaska Airlines",    "1315", "FROM PORTLAND",   "GT 11", 58, "ON TIME"),
-            ("DEP", "SW",     "Southwest Airlines", "719",  "BURBANK (BUR)",   "GT 25", 65, "ON TIME"),
-        ]
-        for m_type, brand, full_airline, num, target, gate, mins, status in sample_flights:
-            t_str = (now + timedelta(minutes=mins)).strftime("%H:%M")
-            records.append({
-                "type": m_type,
-                "time": t_str,
-                "service": format_flight_service(brand, num),
-                "airline": full_airline,
-                "destination": target[:15],
-                "track": gate[:5],
-                "status": status[:9],
-                "minutes_away": mins,
-                "agency": "SJC"
-            })
-            
-    records.sort(key=lambda x: x.get("minutes_away", 99))
-    return records[:limit]
+        logger.warning(f"Error connecting to flysanjose.com API: {e}")
+
+    # If recent cache exists, return it
+    if _LAST_SJC_RECORDS:
+        return _LAST_SJC_RECORDS[:limit]
+
+    return []

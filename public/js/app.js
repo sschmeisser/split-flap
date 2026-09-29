@@ -390,9 +390,9 @@ class SolariApp {
                 window.flightAnnouncer.checkRowsForBoarding(data.rows);
             }
 
-            // USER REQUIREMENT: Maximum one animation per minute, and ONLY show when an event changed since last time.
+            // USER REQUIREMENT: Maximum 2 animations per minute (30s cooldown), and ONLY show when an event changed since last time.
             const nowMs = Date.now();
-            const minCooldownMs = 60000; // 60 seconds (1 minute minimum between animations)
+            const minCooldownMs = 30000; // 30 seconds (maximum 2 animations per minute)
             const canAnimateNow = !this.isMapActive && (nowMs - this.lastAnimationEndTime >= minCooldownMs);
 
             if (data.rows && data.rows.length > 0) {
@@ -433,7 +433,7 @@ class SolariApp {
                     // Only consider for animation if:
                     // 1. Initial baseline is established
                     // 2. Event actually changed since last check
-                    // 3. 60-second cooldown has elapsed
+                    // 3. Cooldown has elapsed (30s, max 2/min)
                     // 4. This specific changed state has not already been shown
                     if (this.hasInitializedBaseline && eventChanged && canAnimateNow && !eventToTrigger) {
                         const animationStateKey = `${serviceKey}_${currentStatus}_${currentMins}`;
@@ -451,9 +451,9 @@ class SolariApp {
                     console.log('[SolariApp] Initial baseline established for state change tracking.');
                 }
 
-                // If eligible event changed and 60s cooldown is satisfied, trigger animation!
+                // If eligible event changed and cooldown is satisfied, trigger animation!
                 if (eventToTrigger && eventRowIndex >= 0) {
-                    console.log(`[SolariApp] Event changed for ${eventToTrigger.service} -> ${eventToTrigger.status}. Triggering map (cooldown: 60s).`);
+                    console.log(`[SolariApp] Event changed for ${eventToTrigger.service} -> ${eventToTrigger.status}. Triggering map (cooldown: 30s).`);
                     setTimeout(() => {
                         if (!this.isMapActive && (Date.now() - this.lastAnimationEndTime >= minCooldownMs)) {
                             this.triggerArrivalDepartureAnimation(eventRowIndex, eventToTrigger);
