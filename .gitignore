@@ -9,3 +9,6 @@ test_cropped_frame.png
 public/screenshot_*.png
 *.mp4
 !demo.mp4
+.env
+public/audio/cache/
+*.wav

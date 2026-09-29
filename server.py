@@ -13,10 +13,12 @@ Serves live transit & flight arrivals/departures for:
   - Deutsche Bahn ICE, IC, RE, RB, and S-Bahn Nürnberg
 """
 
+import hashlib
 import http.server
 import json
 import logging
 import os
+import requests
 import socket
 import socketserver
 import threading
@@ -37,6 +39,94 @@ logger = logging.getLogger("SolariServer")
 
 PORT = int(os.environ.get("PORT", 8080))
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "public")
+AUDIO_CACHE_DIR = os.path.join(STATIC_DIR, "audio", "cache")
+os.makedirs(AUDIO_CACHE_DIR, exist_ok=True)
+
+def load_env():
+    env_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if os.path.exists(env_file):
+        with open(env_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip())
+
+load_env()
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+if OPENROUTER_API_KEY:
+    logger.info("OpenRouter API key loaded for Carolyn Hopkins neural airport voice.")
+
+def synthesize_speech(text, model="minimax/speech-2.8-hd", voice="English_CalmWoman"):
+    """
+    Synthesize speech using OpenRouter's /api/v1/audio/speech endpoint.
+    Caches the generated MP3 in public/audio/cache/ using an MD5 hash.
+    Falls back to deepgram/aura-2 if primary model encounters an issue.
+    """
+    if not OPENROUTER_API_KEY or not text:
+        return None
+
+    # Deterministic cache key based on text, model, and voice
+    cache_key = hashlib.md5(f"{model}_{voice}_{text}".encode("utf-8")).hexdigest()
+    cache_file = os.path.join(AUDIO_CACHE_DIR, f"{cache_key}.mp3")
+    rel_url = f"/audio/cache/{cache_key}.mp3"
+
+    if os.path.exists(cache_file) and os.path.getsize(cache_file) > 1000:
+        return rel_url
+
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    # Primary: MiniMax Speech 2.8 HD (Warm, calm, maternal Carolyn Hopkins archetype)
+    payload = {
+        "model": model,
+        "input": text,
+        "voice": voice,
+        "response_format": "mp3",
+    }
+
+    try:
+        req = requests.post(
+            "https://openrouter.ai/api/v1/audio/speech",
+            headers=headers,
+            json=payload,
+            timeout=12,
+        )
+        if req.status_code == 200 and len(req.content) > 1000:
+            with open(cache_file, "wb") as f:
+                f.write(req.content)
+            logger.info(f"Synthesized announcement via {model} ({voice}) -> {cache_key}.mp3")
+            return rel_url
+        else:
+            logger.warning(f"OpenRouter speech primary failed (status {req.status_code}): {req.text[:200]}")
+    except Exception as e:
+        logger.warning(f"OpenRouter speech request error: {e}")
+
+    # Fallback: Deepgram Aura-2 (aura-2-thalia-en)
+    try:
+        fallback_payload = {
+            "model": "deepgram/aura-2",
+            "input": text,
+            "voice": "aura-2-thalia-en",
+            "response_format": "mp3",
+        }
+        req2 = requests.post(
+            "https://openrouter.ai/api/v1/audio/speech",
+            headers=headers,
+            json=fallback_payload,
+            timeout=10,
+        )
+        if req2.status_code == 200 and len(req2.content) > 1000:
+            with open(cache_file, "wb") as f:
+                f.write(req2.content)
+            logger.info(f"Synthesized announcement via fallback deepgram/aura-2 -> {cache_key}.mp3")
+            return rel_url
+    except Exception as e:
+        logger.error(f"Fallback speech synthesis error: {e}")
+
+    return None
 
 CACHE = {
     "bart": [],
@@ -132,6 +222,8 @@ class SolariHandler(http.server.SimpleHTTPRequestHandler):
         ".css": "text/css; charset=utf-8",
         ".html": "text/html; charset=utf-8",
         ".json": "application/json; charset=utf-8",
+        ".mp3": "audio/mpeg",
+        ".wav": "audio/wav",
     })
 
     def __init__(self, *args, **kwargs):
@@ -231,7 +323,49 @@ class SolariHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(body)
             return
 
+        if parsed.path == "/api/speech":
+            qs = parse_qs(parsed.query)
+            text = qs.get("text", [""])[0]
+            audio_url = synthesize_speech(text)
+            body = json.dumps({"audio_url": audio_url, "enabled": bool(OPENROUTER_API_KEY)}).encode("utf-8")
+            self.send_response(200 if audio_url else 404)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Connection", "close")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         return super().do_GET()
+
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        if parsed.path in ("/api/speech", "/api/announce-speech"):
+            content_length = int(self.headers.get("Content-Length", 0))
+            raw_body = self.rfile.read(content_length) if content_length > 0 else b"{}"
+            try:
+                data = json.loads(raw_body.decode("utf-8"))
+            except Exception:
+                data = {}
+            text = data.get("text", "")
+            audio_url = synthesize_speech(text)
+            body = json.dumps({
+                "audio_url": audio_url,
+                "enabled": bool(OPENROUTER_API_KEY),
+                "voice": "Carolyn Hopkins Archetype (MiniMax HD)" if audio_url else "Web Speech Fallback"
+            }).encode("utf-8")
+            self.send_response(200 if audio_url else 500)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Connection", "close")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        self.send_response(404)
+        self.end_headers()
 
 
 class ThreadingDualStackServer(socketserver.ThreadingMixIn, http.server.HTTPServer):

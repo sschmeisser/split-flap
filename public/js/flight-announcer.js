@@ -375,32 +375,156 @@ class FlightAnnouncer {
         }
     }
 
-    speak(text) {
+    playTerminalVoiceBuffer(audioBuffer) {
+        return new Promise((resolve) => {
+            const ctx = window.solariAudio ? window.solariAudio.ctx : null;
+            if (!ctx) {
+                resolve();
+                return;
+            }
+
+            const now = ctx.currentTime;
+            const masterVol = (window.solariAudio.volume || 0.85) * 1.0;
+
+            const source = ctx.createBufferSource();
+            source.buffer = audioBuffer;
+
+            // 1. PA Speaker System Horn EQ
+            // High-pass filter (cuts low rumble below 220 Hz)
+            const paHighpass = ctx.createBiquadFilter();
+            paHighpass.type = 'highpass';
+            paHighpass.frequency.setValueAtTime(220, now);
+
+            // Vocal presence boost at 2400 Hz for clarity through the terminal
+            const paPresence = ctx.createBiquadFilter();
+            paPresence.type = 'peaking';
+            paPresence.frequency.setValueAtTime(2400, now);
+            paPresence.gain.setValueAtTime(2.5, now);
+            paPresence.Q.setValueAtTime(1.0, now);
+
+            // High-frequency roll-off of ceiling horn speakers (5500 Hz)
+            const paRollOff = ctx.createBiquadFilter();
+            paRollOff.type = 'lowpass';
+            paRollOff.frequency.setValueAtTime(5500, now);
+            paRollOff.Q.setValueAtTime(0.7, now);
+
+            source.connect(paHighpass);
+            paHighpass.connect(paPresence);
+            paPresence.connect(paRollOff);
+
+            // 2. Direct Voice Output
+            const dryGain = ctx.createGain();
+            dryGain.gain.setValueAtTime(masterVol * 0.85, now);
+            paRollOff.connect(dryGain);
+            dryGain.connect(ctx.destination);
+
+            // 3. Terminal Concourse Spatial Reflections & Hall Echo Network
+            // Early reflection 1 (42ms - floor and podium bounce)
+            const delayEarly1 = ctx.createDelay();
+            delayEarly1.delayTime.setValueAtTime(0.042, now);
+            const gainEarly1 = ctx.createGain();
+            gainEarly1.gain.setValueAtTime(0.26, now);
+
+            // Early reflection 2 (98ms - concourse window and wall bounce)
+            const delayEarly2 = ctx.createDelay();
+            delayEarly2.delayTime.setValueAtTime(0.098, now);
+            const gainEarly2 = ctx.createGain();
+            gainEarly2.gain.setValueAtTime(0.18, now);
+
+            // Cavernous terminal hall echo (270ms with air-damped feedback loop)
+            const delayEcho = ctx.createDelay();
+            delayEcho.delayTime.setValueAtTime(0.270, now);
+
+            const echoFeedback = ctx.createGain();
+            echoFeedback.gain.setValueAtTime(0.30, now);
+
+            const airDamping = ctx.createBiquadFilter();
+            airDamping.type = 'lowpass';
+            airDamping.frequency.setValueAtTime(2200, now); // high frequencies lose energy in large halls
+
+            // Feedback loop: delayEcho -> airDamping -> echoFeedback -> delayEcho
+            delayEcho.connect(airDamping);
+            airDamping.connect(echoFeedback);
+            echoFeedback.connect(delayEcho);
+
+            // Master Terminal Echo Wet Gain
+            const wetGain = ctx.createGain();
+            wetGain.gain.setValueAtTime(masterVol * 0.44, now);
+
+            paRollOff.connect(delayEarly1);
+            delayEarly1.connect(gainEarly1);
+            gainEarly1.connect(wetGain);
+
+            paRollOff.connect(delayEarly2);
+            delayEarly2.connect(gainEarly2);
+            gainEarly2.connect(wetGain);
+
+            paRollOff.connect(delayEcho);
+            airDamping.connect(wetGain);
+
+            wetGain.connect(ctx.destination);
+
+            source.onended = () => resolve();
+            source.start(now);
+        });
+    }
+
+    async speak(text) {
+        if (!this.enabled) return;
+
+        // Try OpenRouter Carolyn Hopkins archetype neural voice with terminal echo
+        try {
+            const resp = await fetch('/api/announce-speech', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.audio_url && window.solariAudio && window.solariAudio.ctx) {
+                    const ctx = window.solariAudio.ctx;
+                    if (ctx.state !== 'running') {
+                        await ctx.resume();
+                    }
+                    const audioResp = await fetch(data.audio_url);
+                    const arrayBuffer = await audioResp.arrayBuffer();
+                    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+                    await this.playTerminalVoiceBuffer(audioBuffer);
+                    return;
+                }
+            }
+        } catch (err) {
+            console.warn('[FlightAnnouncer] Neural voice error, falling back to Web Speech:', err);
+        }
+
+        // Graceful fallback to client-side Web Speech API
+        await this.speakNative(text);
+    }
+
+    speakNative(text) {
         return new Promise((resolve) => {
             if (!('speechSynthesis' in window) || !this.enabled) {
                 resolve();
                 return;
             }
 
-            // Cancel any stale speech
             window.speechSynthesis.cancel();
 
             const utterance = new SpeechSynthesisUtterance(text);
             if (this.preferredVoice) {
                 utterance.voice = this.preferredVoice;
             }
-            // Pleasant, clear, unhurried airport announcer delivery
             utterance.pitch = 1.02;
             utterance.rate = 0.88;
             utterance.volume = 1.0;
 
-            utterance.onend = () => resolve();
-            utterance.onerror = () => resolve();
-
-            // Safety timeout in case speech engine hangs
             const safetyTimer = setTimeout(() => resolve(), 9000);
-
             utterance.onend = () => {
+                clearTimeout(safetyTimer);
+                resolve();
+            };
+            utterance.onerror = () => {
                 clearTimeout(safetyTimer);
                 resolve();
             };
