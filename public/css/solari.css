@@ -622,6 +622,11 @@ body.idle .audio-banner {
     background: #0d0f12;
 }
 
+/* High-Contrast Dark Cartography Filter on Base Tiles */
+.dark-transit-tiles {
+    filter: invert(95%) hue-rotate(190deg) brightness(78%) contrast(125%) saturate(20%);
+}
+
 /* Map Cinematic Vignette */
 .map-vignette {
     position: absolute;

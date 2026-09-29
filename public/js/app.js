@@ -482,6 +482,10 @@ class SolariApp {
 
     cancelMapTransition() {
         if (!this.isMapActive) return;
+        if (this.postMapHighlightTimeout) {
+            clearTimeout(this.postMapHighlightTimeout);
+            this.postMapHighlightTimeout = null;
+        }
         const housing = document.getElementById('stationHousing');
         if (housing) housing.classList.remove('pip-mode');
         if (this.board) this.board.clearHighlight();
@@ -512,26 +516,40 @@ class SolariApp {
                 housing.classList.add('pip-mode');
             }
 
-            // Phase 3: Live Map appears, zoomed in on location with street labels & on-vehicle tag for 5.5s (User specification: 5-6s)
+            // Phase 3: Live Map appears, zoomed in on location with street labels & on-vehicle tag for 5.5s (smooth zoom-out)
             if (window.liveMapViewer) {
                 window.liveMapViewer.showEvent(item, () => {
                     // Phase 4: Board smoothly takes over full screen again
                     if (housing) {
                         housing.classList.remove('pip-mode');
                     }
-                    if (this.board) {
-                        this.board.clearHighlight();
+
+                    // Keep line item highlighted for another 5s after coming back from map (User specification)
+                    if (this.postMapHighlightTimeout) {
+                        clearTimeout(this.postMapHighlightTimeout);
                     }
-                    this.lastAnimationEndTime = Date.now();
-                    this.isMapActive = false;
-                    console.log(`[TransitMap] Completed arrival/departure animation for ${item.service}`);
+                    this.postMapHighlightTimeout = setTimeout(() => {
+                        if (this.board) {
+                            this.board.clearHighlight();
+                        }
+                        this.postMapHighlightTimeout = null;
+                        this.lastAnimationEndTime = Date.now();
+                        this.isMapActive = false;
+                        console.log(`[TransitMap] Completed arrival/departure animation and 5s post-map highlight for ${item.service}`);
+                    }, 5000);
                 });
             } else {
                 setTimeout(() => {
                     if (housing) housing.classList.remove('pip-mode');
-                    if (this.board) this.board.clearHighlight();
-                    this.lastAnimationEndTime = Date.now();
-                    this.isMapActive = false;
+                    if (this.postMapHighlightTimeout) {
+                        clearTimeout(this.postMapHighlightTimeout);
+                    }
+                    this.postMapHighlightTimeout = setTimeout(() => {
+                        if (this.board) this.board.clearHighlight();
+                        this.postMapHighlightTimeout = null;
+                        this.lastAnimationEndTime = Date.now();
+                        this.isMapActive = false;
+                    }, 5000);
                 }, 5500);
             }
         }, 2500);

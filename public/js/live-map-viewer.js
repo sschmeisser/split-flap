@@ -36,23 +36,27 @@ class LiveMapViewer {
             return;
         }
 
-        // Initialize Leaflet map with dark theme
+        // Initialize Leaflet map with dark theme and continuous fractional zoom
         this.map = L.map('liveMap', {
             zoomControl: false,
             attributionControl: false,
             fadeAnimation: true,
-            zoomAnimation: true
+            zoomAnimation: true,
+            zoomSnap: 0,
+            zoomDelta: 0.1
         }).setView([37.3630, -121.9287], 15);
 
-        // 1. Dark Transit Cartography Base (Esri World Dark Gray Canvas)
+        // 1. Dark Transit Cartography Base (Esri World Dark Gray Canvas with native 16 upscaling)
         this.tileLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-            maxZoom: 16,
+            maxZoom: 19,
+            maxNativeZoom: 16,
             opacity: 0.95
         }).addTo(this.map);
 
         // 2. High-Resolution Dark Reference Labels (Streets, Highways, Place Names)
         this.labelLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
-            maxZoom: 16,
+            maxZoom: 19,
+            maxNativeZoom: 16,
             opacity: 0.90
         }).addTo(this.map);
     }
@@ -61,70 +65,108 @@ class LiveMapViewer {
         let svgContent = '';
 
         if (type === 'plane') {
-            // Swept-wing commercial jetliner with illuminated wingtips
+            // Swept-wing commercial airliner with navigation lights & twin turbines
             svgContent = `
-                <svg width="44" height="44" viewBox="0 0 100 100" style="filter: drop-shadow(0 4px 10px rgba(0,0,0,0.9));">
-                    <circle cx="50" cy="50" r="46" fill="rgba(245, 183, 34, 0.16)" stroke="#f5b722" stroke-width="2" stroke-dasharray="4,4"/>
-                    <!-- Fuselage -->
-                    <path d="M50 12 C47 18 45 35 45 55 L45 78 C45 82 48 85 50 85 C52 85 55 82 55 78 L55 55 C55 35 53 18 50 12 Z" fill="#ffffff"/>
+                <svg width="48" height="48" viewBox="0 0 100 100" style="filter: drop-shadow(0 6px 14px rgba(0,0,0,0.95));">
+                    <!-- Twin Turbine Pods -->
+                    <rect x="36" y="44" width="6" height="14" rx="2" fill="#adb5bd"/>
+                    <rect x="58" y="44" width="6" height="14" rx="2" fill="#adb5bd"/>
+                    <!-- Fuselage Body -->
+                    <path d="M50 10 C46 16 44 32 44 56 L44 76 C44 80 47 84 50 84 C53 84 56 80 56 76 L56 56 C56 32 54 16 50 10 Z" fill="#ffffff" stroke="#ced4da" stroke-width="1.5"/>
                     <!-- Main Wings -->
-                    <path d="M50 38 L14 62 C11 64 12 67 15 67 L45 58 L45 42 Z" fill="#ffd166"/>
-                    <path d="M50 38 L86 62 C89 64 88 67 85 67 L55 58 L55 42 Z" fill="#ffd166"/>
-                    <!-- Tail Horizontal Stabilizers -->
-                    <path d="M50 75 L32 86 C30 87 31 89 33 89 L46 82 Z" fill="#f5b722"/>
-                    <path d="M50 75 L68 86 C70 87 69 89 67 89 L54 82 Z" fill="#f5b722"/>
-                    <!-- Navigation Lights -->
-                    <circle cx="14" cy="64" r="3.5" fill="#ff4d4f"/>
-                    <circle cx="86" cy="64" r="3.5" fill="#52c41a"/>
-                    <circle cx="50" cy="14" r="3" fill="#00f5d4"/>
+                    <path d="M50 36 L12 60 C9 62 10 65 14 65 L44 54 L44 40 Z" fill="#ffd166"/>
+                    <path d="M50 36 L88 60 C91 62 90 65 86 65 L56 54 L56 40 Z" fill="#ffd166"/>
+                    <!-- Wingtip Navigation Lights -->
+                    <circle cx="12" cy="62" r="3" fill="#ff4d4f"/>
+                    <circle cx="88" cy="62" r="3" fill="#2ecc71"/>
+                    <!-- Horizontal Stabilizers -->
+                    <path d="M50 72 L32 82 C30 83 31 85 33 85 L45 79 Z" fill="#f5b722"/>
+                    <path d="M50 72 L68 82 C70 83 69 85 67 85 L55 79 Z" fill="#f5b722"/>
+                    <!-- Cockpit Windshield -->
+                    <path d="M47 22 Q50 19 53 22 L53 27 Q50 25 47 27 Z" fill="#1e293b"/>
                 </svg>
             `;
         } else if (type === 'bus') {
-            // City transit bus with headlights
+            // Modern Transit Bus with LED Route Display & Headlights
             svgContent = `
-                <svg width="42" height="42" viewBox="0 0 100 100" style="filter: drop-shadow(0 4px 10px rgba(0,0,0,0.9));">
-                    <rect x="30" y="16" width="40" height="68" rx="10" fill="#2ecc71" stroke="#ffffff" stroke-width="3"/>
-                    <rect x="34" y="24" width="32" height="14" rx="3" fill="#14151a"/>
-                    <!-- Side windows -->
-                    <rect x="33" y="44" width="6" height="24" rx="2" fill="#14151a"/>
-                    <rect x="61" y="44" width="6" height="24" rx="2" fill="#14151a"/>
-                    <!-- Roof beacon -->
-                    <circle cx="50" cy="50" r="5" fill="#f5b722"/>
-                    <!-- Headlamps -->
-                    <circle cx="36" cy="18" r="4" fill="#fffbe6"/>
-                    <circle cx="64" cy="18" r="4" fill="#fffbe6"/>
+                <svg width="44" height="44" viewBox="0 0 100 100" style="filter: drop-shadow(0 6px 14px rgba(0,0,0,0.95));">
+                    <!-- Bus Chassis -->
+                    <rect x="30" y="14" width="40" height="72" rx="9" fill="#10b981" stroke="#ffffff" stroke-width="2.5"/>
+                    <!-- Windshield -->
+                    <path d="M34 26 C34 22 36 20 50 20 C64 20 66 22 66 26 L66 36 L34 36 Z" fill="#0f172a"/>
+                    <!-- Destination LED Banner -->
+                    <rect x="38" y="16" width="24" height="4" rx="1.5" fill="#f5b722"/>
+                    <!-- Side Passenger Windows -->
+                    <rect x="33" y="42" width="5" height="12" rx="1.5" fill="#0f172a"/>
+                    <rect x="33" y="58" width="5" height="12" rx="1.5" fill="#0f172a"/>
+                    <rect x="62" y="42" width="5" height="12" rx="1.5" fill="#0f172a"/>
+                    <rect x="62" y="58" width="5" height="12" rx="1.5" fill="#0f172a"/>
+                    <!-- Dual Headlamps -->
+                    <circle cx="36" cy="18" r="3.5" fill="#fffbe6"/>
+                    <circle cx="64" cy="18" r="3.5" fill="#fffbe6"/>
+                    <!-- Rear Taillights -->
+                    <rect x="33" y="82" width="5" height="3" fill="#ef4444"/>
+                    <rect x="62" y="82" width="5" height="3" fill="#ef4444"/>
                 </svg>
             `;
         } else if (type === 'light_rail') {
-            // Electric light rail LRV
+            // Modern Articulated Light Rail Vehicle (LRV)
             svgContent = `
-                <svg width="44" height="44" viewBox="0 0 100 100" style="filter: drop-shadow(0 4px 10px rgba(0,0,0,0.9));">
-                    <rect x="32" y="14" width="36" height="72" rx="8" fill="#3498db" stroke="#ffffff" stroke-width="3"/>
-                    <rect x="36" y="20" width="28" height="12" rx="3" fill="#0b1726"/>
-                    <rect x="36" y="38" width="28" height="12" rx="2" fill="#0b1726"/>
-                    <rect x="36" y="56" width="28" height="12" rx="2" fill="#0b1726"/>
-                    <!-- Pantograph diamond -->
-                    <path d="M50 44 L44 50 L50 56 L56 50 Z" fill="none" stroke="#f5b722" stroke-width="2.5"/>
-                    <circle cx="38" cy="16" r="3.5" fill="#ffe58f"/>
-                    <circle cx="62" cy="16" r="3.5" fill="#ffe58f"/>
+                <svg width="44" height="44" viewBox="0 0 100 100" style="filter: drop-shadow(0 6px 14px rgba(0,0,0,0.95));">
+                    <!-- Articulated LRV Body -->
+                    <rect x="32" y="12" width="36" height="76" rx="8" fill="#0284c7" stroke="#ffffff" stroke-width="2.5"/>
+                    <!-- Articulation Accordion Bellows -->
+                    <rect x="30" y="48" width="40" height="4" fill="#334155"/>
+                    <!-- Front & Rear Windshields -->
+                    <rect x="36" y="18" width="28" height="11" rx="2" fill="#090d16"/>
+                    <rect x="36" y="71" width="28" height="11" rx="2" fill="#090d16"/>
+                    <!-- Passenger Windows -->
+                    <rect x="36" y="34" width="28" height="10" rx="1.5" fill="#090d16"/>
+                    <rect x="36" y="56" width="28" height="10" rx="1.5" fill="#090d16"/>
+                    <!-- Diamond Roof Pantograph -->
+                    <path d="M50 40 L44 46 L50 52 L56 46 Z" fill="none" stroke="#f5b722" stroke-width="2.5"/>
+                    <!-- Xenon Headlights -->
+                    <circle cx="38" cy="15" r="3" fill="#ffe58f"/>
+                    <circle cx="62" cy="15" r="3" fill="#ffe58f"/>
+                </svg>
+            `;
+        } else if (type === 'bart') {
+            // BART Fleet of the Future Aerodynamic Train Car
+            svgContent = `
+                <svg width="44" height="44" viewBox="0 0 100 100" style="filter: drop-shadow(0 6px 14px rgba(0,0,0,0.95));">
+                    <!-- BART Aluminum Carbody -->
+                    <rect x="32" y="12" width="36" height="76" rx="7" fill="#e2e8f0" stroke="#0ea5e9" stroke-width="2.5"/>
+                    <!-- Streamlined Nose Chevron (BART Cyan Accent) -->
+                    <path d="M32 20 L50 12 L68 20 L68 28 L50 22 L32 28 Z" fill="#0284c7"/>
+                    <!-- Tinted Windshield -->
+                    <rect x="36" y="24" width="28" height="10" rx="2" fill="#0f172a"/>
+                    <!-- Side Windows -->
+                    <rect x="35" y="38" width="30" height="9" rx="1.5" fill="#0f172a"/>
+                    <rect x="35" y="51" width="30" height="9" rx="1.5" fill="#0f172a"/>
+                    <rect x="35" y="64" width="30" height="9" rx="1.5" fill="#0f172a"/>
+                    <!-- LED Headlights -->
+                    <circle cx="38" cy="15" r="3" fill="#ffffff"/>
+                    <circle cx="62" cy="15" r="3" fill="#ffffff"/>
                 </svg>
             `;
         } else {
-            // Streamlined Passenger Train Locomotive
+            // Streamlined Passenger Train Locomotive (Caltrain / Amtrak / DB ICE)
             svgContent = `
-                <svg width="44" height="44" viewBox="0 0 100 100" style="filter: drop-shadow(0 4px 10px rgba(0,0,0,0.9));">
-                    <circle cx="50" cy="50" r="44" fill="rgba(231, 76, 60, 0.15)" stroke="#e74c3c" stroke-width="2" stroke-dasharray="3,3"/>
-                    <!-- Locomotive body -->
-                    <path d="M34 24 C34 16 42 12 50 12 C58 12 66 16 66 24 L66 76 C66 82 60 86 50 86 C40 86 34 82 34 76 Z" fill="#e74c3c" stroke="#ffffff" stroke-width="2.5"/>
-                    <!-- Windshield -->
-                    <path d="M38 26 C38 20 43 18 50 18 C57 18 62 20 62 26 L62 34 L38 34 Z" fill="#17181c"/>
-                    <!-- High-intensity Center Headlamp -->
-                    <circle cx="50" cy="16" r="4.5" fill="#ffffff"/>
-                    <circle cx="38" cy="22" r="3" fill="#ffe58f"/>
-                    <circle cx="62" cy="22" r="3" fill="#ffe58f"/>
-                    <!-- Red markers rear -->
-                    <circle cx="40" cy="82" r="2.5" fill="#ff4d4f"/>
-                    <circle cx="60" cy="82" r="2.5" fill="#ff4d4f"/>
+                <svg width="46" height="46" viewBox="0 0 100 100" style="filter: drop-shadow(0 6px 14px rgba(0,0,0,0.95));">
+                    <!-- Locomotive Aerodynamic Body -->
+                    <path d="M33 22 C33 13 42 10 50 10 C58 10 67 13 67 22 L67 78 C67 84 60 88 50 88 C40 88 33 84 33 78 Z" fill="#dc2626" stroke="#ffffff" stroke-width="2.5"/>
+                    <!-- High-Speed Slanted Windshield -->
+                    <path d="M38 24 C38 18 43 16 50 16 C57 16 62 18 62 24 L62 34 L38 34 Z" fill="#090d16"/>
+                    <!-- Center Xenon Headlamp with Glow -->
+                    <circle cx="50" cy="14" r="5" fill="#ffffff" stroke="#f5b722" stroke-width="1.5"/>
+                    <circle cx="38" cy="20" r="3" fill="#fef08a"/>
+                    <circle cx="62" cy="20" r="3" fill="#fef08a"/>
+                    <!-- Dynamic Airflow Grooves -->
+                    <line x1="42" y1="42" x2="42" y2="76" stroke="#991b1b" stroke-width="2"/>
+                    <line x1="58" y1="42" x2="58" y2="76" stroke="#991b1b" stroke-width="2"/>
+                    <!-- Red Marker Taillights -->
+                    <circle cx="39" cy="84" r="2.5" fill="#f87171"/>
+                    <circle cx="61" cy="84" r="2.5" fill="#f87171"/>
                 </svg>
             `;
         }
@@ -193,6 +235,10 @@ class LiveMapViewer {
     }
 
     showEvent(rowItem, onComplete) {
+        if (this.cleanupTimeout) {
+            clearTimeout(this.cleanupTimeout);
+            this.cleanupTimeout = null;
+        }
         if (this.isAnimating) return;
         this.isAnimating = true;
 
@@ -264,15 +310,34 @@ class LiveMapViewer {
         setTimeout(() => { if (this.map) this.map.invalidateSize(); }, 60);
         setTimeout(() => { if (this.map) this.map.invalidateSize(); }, 250);
 
-        // Frame focal view directly at high precision
+        // Frame focal view directly at high precision (starts zoomed in close, then smoothly zooms out)
         const center = geo.center || geo.path[0];
-        const zoom = geo.zoom || (geo.is_stationary ? 18 : 17);
-        this.map.setView(center, zoom, { animate: false });
+        const baseNominalZoom = geo.zoom || (geo.is_stationary ? 17.5 : 17.0);
+        const startZoom = Math.min(18.2, baseNominalZoom + 1.0);
+        const endZoom = Math.max(14.0, baseNominalZoom - 1.4);
+        this.map.setView(center, startZoom, { animate: false });
 
-        // Add prominent station, airport, and street landmark badges on the map
+        // Smoothly zoom out over 5.0 seconds using hardware-accelerated flyTo
+        const targetCenter = geo.is_stationary ? center : (geo.center || center);
+        setTimeout(() => {
+            if (this.map && this.isAnimating) {
+                this.map.flyTo(targetCenter, endZoom, {
+                    duration: 5.0,
+                    easeLinearity: 0.25
+                });
+            }
+        }, 100);
+
+        // Add prominent station, airport, and street landmark badges on the map (avoiding overlap with vehicle)
         this.clearLandmarks();
         if (geo.landmarks && Array.isArray(geo.landmarks)) {
+            const vehiclePos = geo.path[0];
             geo.landmarks.forEach(lm => {
+                // Filter out any landmark within 32 meters of vehicle position to prevent clutter/overlap
+                const dLat = (lm.pos[0] - vehiclePos[0]) * 111139;
+                const dLon = (lm.pos[1] - vehiclePos[1]) * 111139 * Math.cos(vehiclePos[0] * Math.PI / 180);
+                if (Math.hypot(dLat, dLon) < 32) return;
+
                 const icon = L.divIcon({
                     html: `<div class="map-landmark-badge ${lm.type || ''}">${lm.title}</div>`,
                     className: 'map-landmark-container',
@@ -357,9 +422,10 @@ class LiveMapViewer {
             zIndexOffset: 1500
         }).addTo(this.map);
 
-        // Exact 5.5-second animation (smooth, deliberate, cinematic movement)
+        // Exact 5.5-second animation (smooth, deliberate, cinematic movement with zoom-out)
         const duration = 5500;
         const startTime = performance.now();
+        let lastHeading = geo.start_heading || 0;
 
         const animateStep = (now) => {
             const elapsed = now - startTime;
@@ -377,7 +443,10 @@ class LiveMapViewer {
 
             if (this.currentMarker) {
                 this.currentMarker.setLatLng(currentPos);
-                this.currentMarker.setIcon(this.getVehicleMarkerIcon(geo.type, currentHeading, vehicleInfo));
+                if (Math.abs(currentHeading - lastHeading) > 0.5) {
+                    this.currentMarker.setIcon(this.getVehicleMarkerIcon(geo.type, currentHeading, vehicleInfo));
+                    lastHeading = currentHeading;
+                }
             }
 
             if (progress < 1.0) {
@@ -399,13 +468,23 @@ class LiveMapViewer {
     }
 
     cleanup(onComplete) {
+        this.isAnimating = false;
+        if (this.map) {
+            this.map.stop();
+        }
         if (this.animationFrame) {
             cancelAnimationFrame(this.animationFrame);
             this.animationFrame = null;
         }
 
+        if (this.cleanupTimeout) {
+            clearTimeout(this.cleanupTimeout);
+            this.cleanupTimeout = null;
+        }
+
         // Smooth fade out
-        setTimeout(() => {
+        this.cleanupTimeout = setTimeout(() => {
+            this.cleanupTimeout = null;
             if (this.overlay) {
                 this.overlay.classList.remove('active');
             }
