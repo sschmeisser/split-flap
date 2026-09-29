@@ -65,11 +65,14 @@ class SolariApp {
         this.soundEnabled = true;
         this.voiceEnabled = true;
 
-        // Live Map Arrival/Departure Tracking State (Never repeat a line item)
+        // Live Map Arrival/Departure Tracking State
         this.lastLoadedRows = [];
         this.isMapActive = false;
         this.shownServices = new Set();
         this.mapPreviewIndex = 0;
+        this.lastAnimationEndTime = 0;
+        this.servicePreviousStates = new Map();
+        this.hasInitializedBaseline = false;
 
         this.init();
     }
@@ -387,33 +390,75 @@ class SolariApp {
                 window.flightAnnouncer.checkRowsForBoarding(data.rows);
             }
 
-            // Check for actual arrival or departure events (minutes_away === 0 or active status)
-            // STRICT USER REQUIREMENT: Do not ever repeat a line item to map animation. Only show it once.
-            if (!this.isMapActive && data.rows && data.rows.length > 0) {
+            // USER REQUIREMENT: Maximum one animation per minute, and ONLY show when an event changed since last time.
+            const nowMs = Date.now();
+            const minCooldownMs = 60000; // 60 seconds (1 minute minimum between animations)
+            const canAnimateNow = !this.isMapActive && (nowMs - this.lastAnimationEndTime >= minCooldownMs);
+
+            if (data.rows && data.rows.length > 0) {
+                let eventToTrigger = null;
+                let eventRowIndex = -1;
+
                 for (let i = 0; i < data.rows.length; i++) {
                     const row = data.rows[i];
-                    const mins = row.minutes_away !== undefined ? row.minutes_away : 99;
-                    const status = (row.status || '').toUpperCase();
-                    const isArrivingOrDeparting = mins === 0 || 
-                        status.includes('BOARD') || 
-                        status.includes('ARRIV') || 
-                        status.includes('FINAL') || 
-                        status.includes('CLIMB') ||
-                        status.includes('TAXI');
+                    const serviceKey = (row.service || '').trim().toUpperCase();
+                    if (!serviceKey) continue;
 
-                    const serviceKey = `${row.service}_${row.destination}_${row.time}`.toUpperCase();
-                    if (isArrivingOrDeparting && !this.shownServices.has(serviceKey)) {
-                        // Mark as shown - NEVER repeat this line item
-                        this.shownServices.add(serviceKey);
+                    const currentStatus = (row.status || '').toUpperCase().trim();
+                    const currentMins = row.minutes_away !== undefined ? row.minutes_away : 99;
+                    const prev = this.servicePreviousStates.get(serviceKey);
 
-                        // Trigger after slight stagger so board flips first
-                        setTimeout(() => {
-                            if (!this.isMapActive) {
-                                this.triggerArrivalDepartureAnimation(i, row);
-                            }
-                        }, 1800);
-                        break;
+                    // Determine if status or state actually transitioned
+                    let eventChanged = false;
+                    if (prev) {
+                        const statusChanged = prev.status !== currentStatus;
+                        const justArrived = prev.minutes_away > 0 && currentMins === 0;
+                        const enteredFinal = prev.status !== 'FINAL' && currentStatus === 'FINAL';
+                        const startedBoarding = !prev.status.includes('BOARD') && currentStatus.includes('BOARD');
+                        const startedDeparting = !prev.status.includes('DEPART') && currentStatus.includes('DEPART');
+
+                        if (statusChanged || justArrived || enteredFinal || startedBoarding || startedDeparting) {
+                            eventChanged = true;
+                        }
                     }
+
+                    // Save latest known state
+                    this.servicePreviousStates.set(serviceKey, {
+                        status: currentStatus,
+                        minutes_away: currentMins,
+                        time: row.time,
+                        track: row.track
+                    });
+
+                    // Only consider for animation if:
+                    // 1. Initial baseline is established
+                    // 2. Event actually changed since last check
+                    // 3. 60-second cooldown has elapsed
+                    // 4. This specific changed state has not already been shown
+                    if (this.hasInitializedBaseline && eventChanged && canAnimateNow && !eventToTrigger) {
+                        const animationStateKey = `${serviceKey}_${currentStatus}_${currentMins}`;
+                        if (!this.shownServices.has(animationStateKey)) {
+                            this.shownServices.add(animationStateKey);
+                            eventToTrigger = row;
+                            eventRowIndex = i;
+                        }
+                    }
+                }
+
+                // Initial baseline established on first poll cycle so board doesn't blast animations immediately
+                if (!this.hasInitializedBaseline) {
+                    this.hasInitializedBaseline = true;
+                    console.log('[SolariApp] Initial baseline established for state change tracking.');
+                }
+
+                // If eligible event changed and 60s cooldown is satisfied, trigger animation!
+                if (eventToTrigger && eventRowIndex >= 0) {
+                    console.log(`[SolariApp] Event changed for ${eventToTrigger.service} -> ${eventToTrigger.status}. Triggering map (cooldown: 60s).`);
+                    setTimeout(() => {
+                        if (!this.isMapActive && (Date.now() - this.lastAnimationEndTime >= minCooldownMs)) {
+                            this.triggerArrivalDepartureAnimation(eventRowIndex, eventToTrigger);
+                        }
+                    }, 1800);
                 }
             }
 
@@ -477,6 +522,7 @@ class SolariApp {
                     if (this.board) {
                         this.board.clearHighlight();
                     }
+                    this.lastAnimationEndTime = Date.now();
                     this.isMapActive = false;
                     console.log(`[TransitMap] Completed arrival/departure animation for ${item.service}`);
                 });
@@ -484,6 +530,7 @@ class SolariApp {
                 setTimeout(() => {
                     if (housing) housing.classList.remove('pip-mode');
                     if (this.board) this.board.clearHighlight();
+                    this.lastAnimationEndTime = Date.now();
                     this.isMapActive = false;
                 }, 5500);
             }

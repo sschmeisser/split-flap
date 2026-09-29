@@ -171,6 +171,10 @@ class LiveMapViewer {
         const p0 = path[segIndex];
         const p1 = path[segIndex + 1];
 
+        if (p0[0] === p1[0] && p0[1] === p1[1]) {
+            return { pos: p0, heading: defaultHeading };
+        }
+
         const lat = p0[0] + (p1[0] - p0[0]) * subT;
         const lon = p0[1] + (p1[1] - p0[1]) * subT;
 
@@ -203,11 +207,12 @@ class LiveMapViewer {
             type: 'train',
             mode_type: rowItem.type || 'DEP',
             center: [37.3300, -121.9030],
-            zoom: 16,
-            path: [[37.3300, -121.9030], [37.3400, -121.9120]],
+            zoom: 17,
+            path: [[37.3300, -121.9030], [37.3300, -121.9030]],
             start_heading: 328,
             end_heading: 328,
-            speed_label: '35 mph • ACTIVE',
+            speed_label: '0 mph • STANDBY',
+            is_stationary: true,
             location_name: 'San Jose Transit Hub',
             track_name: rowItem.track || 'TRK 1',
             landmarks: []
@@ -234,7 +239,10 @@ class LiveMapViewer {
         }
 
         if (this.destEl) {
-            const action = rowItem.type === 'ARR' ? 'ARRIVING FROM' : 'SERVICE TO';
+            let action = rowItem.type === 'ARR' ? 'ARRIVING FROM' : 'SERVICE TO';
+            if (geo.is_stationary) {
+                action = (geo.type === 'plane') ? 'BOARDING FOR' : 'DEPARTURE TO';
+            }
             this.destEl.textContent = `${action} ${cleanDest}`;
         }
         if (this.telemetryEl) {
@@ -256,12 +264,10 @@ class LiveMapViewer {
         setTimeout(() => { if (this.map) this.map.invalidateSize(); }, 60);
         setTimeout(() => { if (this.map) this.map.invalidateSize(); }, 250);
 
-        // Frame the entire path and landmark area steadily with generous padding
-        const bounds = L.latLngBounds(geo.path);
-        if (geo.landmarks && Array.isArray(geo.landmarks)) {
-            geo.landmarks.forEach(lm => bounds.extend(lm.pos));
-        }
-        this.map.fitBounds(bounds, { padding: [110, 110], maxZoom: 16, animate: false });
+        // Frame focal view directly at high precision
+        const center = geo.center || geo.path[0];
+        const zoom = geo.zoom || (geo.is_stationary ? 18 : 17);
+        this.map.setView(center, zoom, { animate: false });
 
         // Add prominent station, airport, and street landmark badges on the map
         this.clearLandmarks();
@@ -277,22 +283,67 @@ class LiveMapViewer {
             });
         }
 
-        // Draw glowing transit route polyline
-        if (this.currentPathLine) {
-            this.map.removeLayer(this.currentPathLine);
+        // Clear previous corridor and path lines
+        if (this.corridorGlowLine && this.map) {
+            this.map.removeLayer(this.corridorGlowLine);
+            this.corridorGlowLine = null;
         }
-        this.currentPathLine = L.polyline(geo.path, {
-            color: '#f5b722',
-            weight: 4.5,
-            opacity: 0.85,
-            dashArray: '8, 8',
-            lineCap: 'round'
-        }).addTo(this.map);
+        if (this.corridorCoreLine && this.map) {
+            this.map.removeLayer(this.corridorCoreLine);
+            this.corridorCoreLine = null;
+        }
+        if (this.currentPathLine && this.map) {
+            this.map.removeLayer(this.currentPathLine);
+            this.currentPathLine = null;
+        }
+
+        // Draw highlighted road or rail corridor that the vehicle came from / will travel on
+        if (geo.corridor && Array.isArray(geo.corridor) && geo.corridor.length >= 2) {
+            const isRail = geo.type === 'train' || geo.type === 'light_rail' || geo.type === 'bart';
+            const corridorColor = isRail ? '#38bdf8' : (geo.type === 'plane' ? '#c084fc' : '#34d399');
+
+            // Glowing outer road / rail corridor bedding
+            this.corridorGlowLine = L.polyline(geo.corridor, {
+                color: corridorColor,
+                weight: isRail ? 8 : 10,
+                opacity: 0.35,
+                lineCap: 'round',
+                lineJoin: 'round'
+            }).addTo(this.map);
+
+            // Core highlighted road / rail line
+            this.corridorCoreLine = L.polyline(geo.corridor, {
+                color: corridorColor,
+                weight: 3.5,
+                opacity: 0.9,
+                dashArray: isRail ? '7, 7' : undefined,
+                lineCap: 'round',
+                lineJoin: 'round'
+            }).addTo(this.map);
+        }
+
+        // If the vehicle is actively moving, draw active movement vector in vibrant golden amber
+        const isMoving = !geo.is_stationary && geo.path && geo.path.length >= 2 &&
+            (geo.path[0][0] !== geo.path[1][0] || geo.path[0][1] !== geo.path[1][1]);
+
+        if (isMoving) {
+            this.currentPathLine = L.polyline(geo.path, {
+                color: '#f5b722',
+                weight: 5,
+                opacity: 0.95,
+                dashArray: '6, 6',
+                lineCap: 'round'
+            }).addTo(this.map);
+        }
 
         // Build on-vehicle information tag content
+        let tagDest = (rowItem.type === 'ARR' ? 'FROM ' : 'TO ') + cleanDest;
+        if (geo.is_stationary) {
+            tagDest = (rowItem.status || 'BOARDING') + ' • ' + cleanDest;
+        }
         const vehicleInfo = {
             title: `${vehicleEmoji} ${rowItem.service || ''} (${rowItem.track || 'LIVE'})`,
-            dest: (rowItem.type === 'ARR' ? 'FROM ' : 'TO ') + cleanDest,
+            dest: tagDest,
             speed: (geo.speed_label || 'ACTIVE').split('•')[0].trim()
         };
 
@@ -367,6 +418,14 @@ class LiveMapViewer {
             if (this.currentPathLine && this.map) {
                 this.map.removeLayer(this.currentPathLine);
                 this.currentPathLine = null;
+            }
+            if (this.corridorGlowLine && this.map) {
+                this.map.removeLayer(this.corridorGlowLine);
+                this.corridorGlowLine = null;
+            }
+            if (this.corridorCoreLine && this.map) {
+                this.map.removeLayer(this.corridorCoreLine);
+                this.corridorCoreLine = null;
             }
             this.clearLandmarks();
 
