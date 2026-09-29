@@ -65,10 +65,10 @@ class SolariApp {
         this.soundEnabled = true;
         this.voiceEnabled = true;
 
-        // Live Map Arrival/Departure Tracking State
+        // Live Map Arrival/Departure Tracking State (Never repeat a line item)
         this.lastLoadedRows = [];
         this.isMapActive = false;
-        this.recentAnimatedServices = new Set();
+        this.shownServices = new Set();
         this.mapPreviewIndex = 0;
 
         this.init();
@@ -388,6 +388,7 @@ class SolariApp {
             }
 
             // Check for actual arrival or departure events (minutes_away === 0 or active status)
+            // STRICT USER REQUIREMENT: Do not ever repeat a line item to map animation. Only show it once.
             if (!this.isMapActive && data.rows && data.rows.length > 0) {
                 for (let i = 0; i < data.rows.length; i++) {
                     const row = data.rows[i];
@@ -400,17 +401,17 @@ class SolariApp {
                         status.includes('CLIMB') ||
                         status.includes('TAXI');
 
-                    const serviceKey = `${row.service}_${row.destination}_${status}`;
-                    if (isArrivingOrDeparting && !this.recentAnimatedServices.has(serviceKey)) {
-                        this.recentAnimatedServices.add(serviceKey);
-                        setTimeout(() => this.recentAnimatedServices.delete(serviceKey), 120000);
+                    const serviceKey = `${row.service}_${row.destination}_${row.time}`.toUpperCase();
+                    if (isArrivingOrDeparting && !this.shownServices.has(serviceKey)) {
+                        // Mark as shown - NEVER repeat this line item
+                        this.shownServices.add(serviceKey);
 
-                        // Trigger the 5s map sequence with slight stagger so board flips first
+                        // Trigger after slight stagger so board flips first
                         setTimeout(() => {
                             if (!this.isMapActive) {
                                 this.triggerArrivalDepartureAnimation(i, row);
                             }
-                        }, 2200);
+                        }, 1800);
                         break;
                     }
                 }
@@ -447,6 +448,10 @@ class SolariApp {
         if (this.isMapActive || !item) return;
         this.isMapActive = true;
 
+        // Ensure this service is recorded as shown so it is never repeated automatically
+        const serviceKey = `${item.service}_${item.destination}_${item.time}`.toUpperCase();
+        this.shownServices.add(serviceKey);
+
         console.log(`[TransitMap] Triggering arrival/departure animation for row ${rowIndex}:`, item.service);
 
         // Phase 1: Highlight line item font in radiant golden-amber right before board moves
@@ -454,7 +459,7 @@ class SolariApp {
             this.board.highlightRow(rowIndex);
         }
 
-        // Wait 1.2 seconds so viewer knows what they are about to see
+        // Wait 2.5 seconds (User specification: 2-3s) so the viewer clearly sees the highlighted line item
         setTimeout(() => {
             const housing = document.getElementById('stationHousing');
             if (housing) {
@@ -462,7 +467,7 @@ class SolariApp {
                 housing.classList.add('pip-mode');
             }
 
-            // Phase 3: Live Map appears, zoomed in on location, and runs 5-second realistic movement
+            // Phase 3: Live Map appears, zoomed in on location with street labels & on-vehicle tag for 5.5s (User specification: 5-6s)
             if (window.liveMapViewer) {
                 window.liveMapViewer.showEvent(item, () => {
                     // Phase 4: Board smoothly takes over full screen again
@@ -480,9 +485,9 @@ class SolariApp {
                     if (housing) housing.classList.remove('pip-mode');
                     if (this.board) this.board.clearHighlight();
                     this.isMapActive = false;
-                }, 5000);
+                }, 5500);
             }
-        }, 1200);
+        }, 2500);
     }
 }
 
