@@ -151,35 +151,25 @@ class FlightAnnouncer {
         const now = ctx.currentTime;
         const masterVol = (window.solariAudio.volume || 0.85) * 0.95;
 
-        // Terminal Spatial Reverb & Warm Lowpass Filter
-        const terminalFilter = ctx.createBiquadFilter();
-        terminalFilter.type = 'lowpass';
-        terminalFilter.frequency.setValueAtTime(3600, now);
-        terminalFilter.Q.setValueAtTime(0.7, now);
-
-        // Terminal reflections network (recreates the spacious acoustics of high-ceiling airport halls)
-        const delayEarly = ctx.createDelay();
-        delayEarly.delayTime.setValueAtTime(0.048, now); // 48ms early floor/glass reflection
-
-        const delayLate = ctx.createDelay();
-        delayLate.delayTime.setValueAtTime(0.185, now); // 185ms terminal hall echo
-
-        const earlyGain = ctx.createGain();
-        earlyGain.gain.setValueAtTime(0.24, now);
-
-        const lateGain = ctx.createGain();
-        lateGain.gain.setValueAtTime(0.15, now);
+        // Clean, warm broadcast filter (no muddy delays)
+        const chimeFilter = ctx.createBiquadFilter();
+        chimeFilter.type = 'lowpass';
+        chimeFilter.frequency.setValueAtTime(4200, now);
+        chimeFilter.Q.setValueAtTime(0.7, now);
 
         const directGain = ctx.createGain();
-        directGain.gain.setValueAtTime(0.78, now);
+        directGain.gain.setValueAtTime(masterVol * 0.92, now);
 
-        directGain.connect(terminalFilter);
-        delayEarly.connect(earlyGain);
-        earlyGain.connect(terminalFilter);
-        delayLate.connect(lateGain);
-        lateGain.connect(terminalFilter);
+        // Faint, subtle ambient presence (only 5%, zero slapback)
+        const roomDelay = ctx.createDelay();
+        roomDelay.delayTime.setValueAtTime(0.025, now);
+        const roomGain = ctx.createGain();
+        roomGain.gain.setValueAtTime(masterVol * 0.05, now);
 
-        terminalFilter.connect(ctx.destination);
+        directGain.connect(chimeFilter);
+        roomDelay.connect(roomGain);
+        roomGain.connect(chimeFilter);
+        chimeFilter.connect(ctx.destination);
 
         // Iconic soothing F-Major triad airport chime:
         // C5 (523.25 Hz) -> F5 (698.46 Hz) -> A5 (880.00 Hz)
@@ -204,8 +194,7 @@ class FlightAnnouncer {
 
             oscFund.connect(gainFund);
             gainFund.connect(directGain);
-            gainFund.connect(delayEarly);
-            gainFund.connect(delayLate);
+            gainFund.connect(roomDelay);
 
             oscFund.start(t0);
             oscFund.stop(t0 + note.dur + 0.1);
@@ -222,7 +211,7 @@ class FlightAnnouncer {
 
             oscModal.connect(gainModal);
             gainModal.connect(directGain);
-            gainModal.connect(delayEarly);
+            gainModal.connect(roomDelay);
 
             oscModal.start(t0);
             oscModal.stop(t0 + note.dur * 0.55);
@@ -389,80 +378,45 @@ class FlightAnnouncer {
             const source = ctx.createBufferSource();
             source.buffer = audioBuffer;
 
-            // 1. PA Speaker System Horn EQ
-            // High-pass filter (cuts low rumble below 220 Hz)
+            // 1. Subtle Broadcast Vocal EQ (clean, natural, speech-optimized)
+            // Low-cut at 160 Hz (removes sub-bass rumble, keeps voice clear)
             const paHighpass = ctx.createBiquadFilter();
             paHighpass.type = 'highpass';
-            paHighpass.frequency.setValueAtTime(220, now);
+            paHighpass.frequency.setValueAtTime(160, now);
 
-            // Vocal presence boost at 2400 Hz for clarity through the terminal
+            // Subtle clarity presence at 2600 Hz (+1.0 dB)
             const paPresence = ctx.createBiquadFilter();
             paPresence.type = 'peaking';
-            paPresence.frequency.setValueAtTime(2400, now);
-            paPresence.gain.setValueAtTime(2.5, now);
-            paPresence.Q.setValueAtTime(1.0, now);
+            paPresence.frequency.setValueAtTime(2600, now);
+            paPresence.gain.setValueAtTime(1.0, now);
+            paPresence.Q.setValueAtTime(0.8, now);
 
-            // High-frequency roll-off of ceiling horn speakers (5500 Hz)
+            // High-frequency smoothing at 8000 Hz for warm, velvety analog tone
             const paRollOff = ctx.createBiquadFilter();
             paRollOff.type = 'lowpass';
-            paRollOff.frequency.setValueAtTime(5500, now);
+            paRollOff.frequency.setValueAtTime(8000, now);
             paRollOff.Q.setValueAtTime(0.7, now);
 
             source.connect(paHighpass);
             paHighpass.connect(paPresence);
             paPresence.connect(paRollOff);
 
-            // 2. Direct Voice Output
+            // 2. Direct, crystal-clear voice (primary audio output: 96% volume)
             const dryGain = ctx.createGain();
-            dryGain.gain.setValueAtTime(masterVol * 0.85, now);
+            dryGain.gain.setValueAtTime(masterVol * 0.96, now);
             paRollOff.connect(dryGain);
             dryGain.connect(ctx.destination);
 
-            // 3. Terminal Concourse Spatial Reflections & Hall Echo Network
-            // Early reflection 1 (42ms - floor and podium bounce)
-            const delayEarly1 = ctx.createDelay();
-            delayEarly1.delayTime.setValueAtTime(0.042, now);
-            const gainEarly1 = ctx.createGain();
-            gainEarly1.gain.setValueAtTime(0.26, now);
+            // 3. Very faint, subtle room air (only 4% volume, zero repeating feedback, zero cavern echo)
+            const roomReflection = ctx.createDelay();
+            roomReflection.delayTime.setValueAtTime(0.022, now); // 22ms micro-reflection
 
-            // Early reflection 2 (98ms - concourse window and wall bounce)
-            const delayEarly2 = ctx.createDelay();
-            delayEarly2.delayTime.setValueAtTime(0.098, now);
-            const gainEarly2 = ctx.createGain();
-            gainEarly2.gain.setValueAtTime(0.18, now);
+            const roomGain = ctx.createGain();
+            roomGain.gain.setValueAtTime(masterVol * 0.04, now); // Just 4% subtle ambient air
 
-            // Cavernous terminal hall echo (270ms with air-damped feedback loop)
-            const delayEcho = ctx.createDelay();
-            delayEcho.delayTime.setValueAtTime(0.270, now);
-
-            const echoFeedback = ctx.createGain();
-            echoFeedback.gain.setValueAtTime(0.30, now);
-
-            const airDamping = ctx.createBiquadFilter();
-            airDamping.type = 'lowpass';
-            airDamping.frequency.setValueAtTime(2200, now); // high frequencies lose energy in large halls
-
-            // Feedback loop: delayEcho -> airDamping -> echoFeedback -> delayEcho
-            delayEcho.connect(airDamping);
-            airDamping.connect(echoFeedback);
-            echoFeedback.connect(delayEcho);
-
-            // Master Terminal Echo Wet Gain
-            const wetGain = ctx.createGain();
-            wetGain.gain.setValueAtTime(masterVol * 0.44, now);
-
-            paRollOff.connect(delayEarly1);
-            delayEarly1.connect(gainEarly1);
-            gainEarly1.connect(wetGain);
-
-            paRollOff.connect(delayEarly2);
-            delayEarly2.connect(gainEarly2);
-            gainEarly2.connect(wetGain);
-
-            paRollOff.connect(delayEcho);
-            airDamping.connect(wetGain);
-
-            wetGain.connect(ctx.destination);
+            paRollOff.connect(roomReflection);
+            roomReflection.connect(roomGain);
+            roomGain.connect(ctx.destination);
 
             source.onended = () => resolve();
             source.start(now);
