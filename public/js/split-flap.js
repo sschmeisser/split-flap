@@ -163,7 +163,24 @@ class SplitFlapBoard {
     initBoard() {
         this.container.innerHTML = '';
         for (let r = 0; r < this.rowCount; r++) {
-            this.rows.push(new SplitFlapRow(this.container, this.colCount));
+            const row = new SplitFlapRow(this.container, this.colCount);
+            row.el.setAttribute('data-row-index', String(r));
+            this.rows.push(row);
+        }
+    }
+
+    highlightRow(index) {
+        this.clearHighlight();
+        if (this.rows[index] && this.rows[index].el) {
+            this.rows[index].el.classList.add('highlight-event');
+        }
+    }
+
+    clearHighlight() {
+        for (const row of this.rows) {
+            if (row && row.el) {
+                row.el.classList.remove('highlight-event');
+            }
         }
     }
 

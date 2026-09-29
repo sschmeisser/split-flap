@@ -65,12 +65,23 @@ class SolariApp {
         this.soundEnabled = true;
         this.voiceEnabled = true;
 
+        // Live Map Arrival/Departure Tracking State
+        this.lastLoadedRows = [];
+        this.isMapActive = false;
+        this.recentAnimatedServices = new Set();
+        this.mapPreviewIndex = 0;
+
         this.init();
     }
 
     init() {
         // Create 12-row x 52-column Solari Board to fill window height and width nicely
         this.board = new SplitFlapBoard('solariGrid', 12, 52);
+
+        // Initialize Live Transit Map Viewer
+        if (window.LiveMapViewer) {
+            window.liveMapViewer = new window.LiveMapViewer();
+        }
 
         this.renderHubUI();
         this.setupEventListeners();
@@ -152,6 +163,9 @@ class SolariApp {
                 window.solariAudio.init();
                 if (window.solariAudio.ctx && window.solariAudio.ctx.state === 'running') {
                     if (unlockPrompt) unlockPrompt.style.display = 'none';
+                    window.removeEventListener('click', unlock);
+                    window.removeEventListener('keydown', unlock);
+                    window.removeEventListener('touchstart', unlock);
                 }
             }
             if (window.flightAnnouncer) {
@@ -203,6 +217,14 @@ class SolariApp {
             });
         }
 
+        // Live Map Preview Button
+        const mapBtn = document.getElementById('mapPreviewBtn');
+        if (mapBtn) {
+            mapBtn.addEventListener('click', () => {
+                this.previewNextMapEvent();
+            });
+        }
+
         // Flight Voice Announcement Toggle Button
         const voiceBtn = document.getElementById('voiceToggleBtn');
         if (voiceBtn) {
@@ -229,12 +251,16 @@ class SolariApp {
         document.addEventListener('keydown', (e) => {
             if (e.key === 'f' || e.key === 'F') {
                 this.toggleFullscreen();
-            } else if (e.key === 'm' || e.key === 'M') {
+            } else if (e.key === 's' || e.key === 'S') {
                 if (soundBtn) soundBtn.click();
             } else if (e.key === 'v' || e.key === 'V') {
                 if (voiceBtn) voiceBtn.click();
             } else if (e.key === 't' || e.key === 'T') {
                 if (testSoundBtn) testSoundBtn.click();
+            } else if (e.key === 'l' || e.key === 'L' || e.key === 'm' || e.key === 'M') {
+                this.previewNextMapEvent();
+            } else if (e.key === 'Escape') {
+                this.cancelMapTransition();
             } else if (e.key === 'h' || e.key === 'H') {
                 // Toggle between hubs with key H
                 const nextHub = this.currentHub === 'sanjose' ? 'nuernberg' : 'sanjose';
@@ -247,6 +273,19 @@ class SolariApp {
                 }
             }
         });
+
+        // Click any row on the board to immediately view its live arrival/departure map
+        const grid = document.getElementById('solariGrid');
+        if (grid) {
+            grid.addEventListener('click', (e) => {
+                const rowEl = e.target.closest('.solari-row');
+                if (!rowEl) return;
+                const rIdx = parseInt(rowEl.getAttribute('data-row-index') || '0', 10);
+                if (this.lastLoadedRows && this.lastLoadedRows[rIdx]) {
+                    this.triggerArrivalDepartureAnimation(rIdx, this.lastLoadedRows[rIdx]);
+                }
+            });
+        }
     }
 
     setupScreensaverIdle() {
@@ -339,11 +378,42 @@ class SolariApp {
                 rowStrings.push(''.padEnd(52, ' '));
             }
 
+            this.lastLoadedRows = data.rows || [];
+
             this.board.updateRows(rowStrings);
 
             // Announce boarding flights for SJC in female voice (max twice per flight)
             if (this.currentHub === 'sanjose' && window.flightAnnouncer && this.voiceEnabled) {
                 window.flightAnnouncer.checkRowsForBoarding(data.rows);
+            }
+
+            // Check for actual arrival or departure events (minutes_away === 0 or active status)
+            if (!this.isMapActive && data.rows && data.rows.length > 0) {
+                for (let i = 0; i < data.rows.length; i++) {
+                    const row = data.rows[i];
+                    const mins = row.minutes_away !== undefined ? row.minutes_away : 99;
+                    const status = (row.status || '').toUpperCase();
+                    const isArrivingOrDeparting = mins === 0 || 
+                        status.includes('BOARD') || 
+                        status.includes('ARRIV') || 
+                        status.includes('FINAL') || 
+                        status.includes('CLIMB') ||
+                        status.includes('TAXI');
+
+                    const serviceKey = `${row.service}_${row.destination}_${status}`;
+                    if (isArrivingOrDeparting && !this.recentAnimatedServices.has(serviceKey)) {
+                        this.recentAnimatedServices.add(serviceKey);
+                        setTimeout(() => this.recentAnimatedServices.delete(serviceKey), 120000);
+
+                        // Trigger the 5s map sequence with slight stagger so board flips first
+                        setTimeout(() => {
+                            if (!this.isMapActive) {
+                                this.triggerArrivalDepartureAnimation(i, row);
+                            }
+                        }, 2200);
+                        break;
+                    }
+                }
             }
 
             const statusEl = document.getElementById('lastUpdatedText');
@@ -355,6 +425,64 @@ class SolariApp {
         } catch (err) {
             console.error('Failed to load departures:', err);
         }
+    }
+
+    previewNextMapEvent() {
+        if (!this.lastLoadedRows || this.lastLoadedRows.length === 0) return;
+        const idx = this.mapPreviewIndex % this.lastLoadedRows.length;
+        this.mapPreviewIndex = (this.mapPreviewIndex + 1) % this.lastLoadedRows.length;
+        this.triggerArrivalDepartureAnimation(idx, this.lastLoadedRows[idx]);
+    }
+
+    cancelMapTransition() {
+        if (!this.isMapActive) return;
+        const housing = document.getElementById('stationHousing');
+        if (housing) housing.classList.remove('pip-mode');
+        if (this.board) this.board.clearHighlight();
+        if (window.liveMapViewer) window.liveMapViewer.cleanup();
+        this.isMapActive = false;
+    }
+
+    triggerArrivalDepartureAnimation(rowIndex, item) {
+        if (this.isMapActive || !item) return;
+        this.isMapActive = true;
+
+        console.log(`[TransitMap] Triggering arrival/departure animation for row ${rowIndex}:`, item.service);
+
+        // Phase 1: Highlight line item font in radiant golden-amber right before board moves
+        if (this.board) {
+            this.board.highlightRow(rowIndex);
+        }
+
+        // Wait 1.2 seconds so viewer knows what they are about to see
+        setTimeout(() => {
+            const housing = document.getElementById('stationHousing');
+            if (housing) {
+                // Phase 2: Board smoothly glides into the top-left corner
+                housing.classList.add('pip-mode');
+            }
+
+            // Phase 3: Live Map appears, zoomed in on location, and runs 5-second realistic movement
+            if (window.liveMapViewer) {
+                window.liveMapViewer.showEvent(item, () => {
+                    // Phase 4: Board smoothly takes over full screen again
+                    if (housing) {
+                        housing.classList.remove('pip-mode');
+                    }
+                    if (this.board) {
+                        this.board.clearHighlight();
+                    }
+                    this.isMapActive = false;
+                    console.log(`[TransitMap] Completed arrival/departure animation for ${item.service}`);
+                });
+            } else {
+                setTimeout(() => {
+                    if (housing) housing.classList.remove('pip-mode');
+                    if (this.board) this.board.clearHighlight();
+                    this.isMapActive = false;
+                }, 5000);
+            }
+        }, 1200);
     }
 }
 

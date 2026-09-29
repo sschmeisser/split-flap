@@ -1,7 +1,7 @@
 /**
  * Solari Mechanical Split-Flap Audio Engine
  * Uses authentic recorded Solari split-flap samples (click.wav, td_clack.wav, board_cascade.mp3)
- * with dynamic pitch/volume randomization and Web Audio buffer streaming.
+ * with dynamic pitch/volume randomization, dual-bus mixing architecture, and master limiter.
  */
 
 class SolariAudioEngine {
@@ -13,6 +13,12 @@ class SolariAudioEngine {
         this.minSoundInterval = 0.022; // 22ms throttle for organic multi-tile texture
         this.isUnlocked = false;
 
+        // Dedicated Audio Graph Buses & Limiter
+        this.masterLimiter = null;
+        this.mechanicalBus = null;
+        this.announcementBus = null;
+        this.isAnnouncing = false;
+
         // Decoded AudioBuffers for authentic mechanical playback
         this.buffers = [];
         this.cascadeBuffer = null;
@@ -23,6 +29,50 @@ class SolariAudioEngine {
         this.loadAudioFiles();
     }
 
+    setupAudioGraph() {
+        if (!this.ctx) return;
+        if (this.masterLimiter) return; // already configured
+
+        // 1. Master Dynamics Compressor / Limiter before physical speakers
+        // Prevents clipping and buffer distortion when hundreds of flaps clack at once or overlap with voice
+        this.masterLimiter = this.ctx.createDynamicsCompressor();
+        this.masterLimiter.threshold.setValueAtTime(-1.5, this.ctx.currentTime);
+        this.masterLimiter.knee.setValueAtTime(4.0, this.ctx.currentTime);
+        this.masterLimiter.ratio.setValueAtTime(14.0, this.ctx.currentTime);
+        this.masterLimiter.attack.setValueAtTime(0.003, this.ctx.currentTime);
+        this.masterLimiter.release.setValueAtTime(0.18, this.ctx.currentTime);
+        this.masterLimiter.connect(this.ctx.destination);
+
+        // 2. Dedicated Mechanical Bus (Tile clacks + Board cascade rumble)
+        this.mechanicalBus = this.ctx.createGain();
+        this.mechanicalBus.gain.setValueAtTime(1.0, this.ctx.currentTime);
+        this.mechanicalBus.connect(this.masterLimiter);
+
+        // 3. Dedicated Announcement Bus (Airport chimes + Neural voice)
+        this.announcementBus = this.ctx.createGain();
+        this.announcementBus.gain.setValueAtTime(1.0, this.ctx.currentTime);
+        this.announcementBus.connect(this.masterLimiter);
+
+        console.log('[SolariAudio] Dual-bus audio graph & master limiter initialized.');
+    }
+
+    setAnnouncementActive(active) {
+        this.isAnnouncing = !!active;
+        if (!this.ctx || !this.mechanicalBus) return;
+
+        const now = this.ctx.currentTime;
+        this.mechanicalBus.gain.cancelScheduledValues(now);
+
+        if (this.isAnnouncing) {
+            // Gently duck mechanical flap sounds to 42% volume over 120ms so voice is prominent
+            // Mechanical clatter continues playing in the background without interruption
+            this.mechanicalBus.gain.linearRampToValueAtTime(0.42, now + 0.12);
+        } else {
+            // Smoothly restore full mechanical volume over 280ms
+            this.mechanicalBus.gain.linearRampToValueAtTime(1.0, now + 0.28);
+        }
+    }
+
     async loadAudioFiles() {
         try {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -30,6 +80,7 @@ class SolariAudioEngine {
             if (!this.ctx) {
                 this.ctx = new AudioContext();
             }
+            this.setupAudioGraph();
 
             const sampleUrls = [
                 'audio/td_clack.wav',
@@ -73,11 +124,12 @@ class SolariAudioEngine {
             }
         }
 
+        this.setupAudioGraph();
+
         if (this.ctx && this.ctx.state === 'suspended') {
             this.ctx.resume().then(() => {
                 this.isUnlocked = true;
                 this.notifyAudioUnlocked();
-                // Ensure samples are loaded once context is active
                 if (!this.samplesLoaded) {
                     this.loadAudioFiles();
                 }
@@ -138,7 +190,8 @@ class SolariAudioEngine {
                 gain.gain.exponentialRampToValueAtTime(0.001, now + 3.2);
 
                 src.connect(gain);
-                gain.connect(this.ctx.destination);
+                // Connect to mechanical bus (which ducks automatically if an announcement is active)
+                gain.connect(this.mechanicalBus || this.ctx.destination);
                 src.start(now, 0.2, 3.2);
             } catch (e) {}
         }
@@ -155,6 +208,8 @@ class SolariAudioEngine {
         }
         this.lastSoundTime = now;
 
+        const targetBus = this.mechanicalBus || this.ctx.destination;
+
         // 1. Primary: Authentic sampled mechanical flap playback
         if (this.buffers && this.buffers.length > 0) {
             try {
@@ -170,7 +225,7 @@ class SolariAudioEngine {
                 gainNode.gain.setValueAtTime(randomGain, now);
 
                 source.connect(gainNode);
-                gainNode.connect(this.ctx.destination);
+                gainNode.connect(targetBus);
 
                 source.start(now);
                 return;
@@ -202,7 +257,7 @@ class SolariAudioEngine {
 
             noiseNode.connect(filter);
             filter.connect(gain);
-            gain.connect(this.ctx.destination);
+            gain.connect(targetBus);
 
             noiseNode.start(now);
             noiseNode.stop(now + 0.045);

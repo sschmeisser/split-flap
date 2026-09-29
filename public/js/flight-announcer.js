@@ -169,7 +169,11 @@ class FlightAnnouncer {
         directGain.connect(chimeFilter);
         roomDelay.connect(roomGain);
         roomGain.connect(chimeFilter);
-        chimeFilter.connect(ctx.destination);
+
+        const targetBus = (window.solariAudio && window.solariAudio.announcementBus) 
+            ? window.solariAudio.announcementBus 
+            : ctx.destination;
+        chimeFilter.connect(targetBus);
 
         // Iconic soothing F-Major triad airport chime:
         // C5 (523.25 Hz) -> F5 (698.46 Hz) -> A5 (880.00 Hz)
@@ -345,10 +349,14 @@ class FlightAnnouncer {
         console.log(`[FlightAnnouncer] Announcing ${item.row.service} (announcement ${currentCount + 1} of 2)`);
 
         try {
+            if (window.solariAudio) {
+                window.solariAudio.setAnnouncementActive(true);
+            }
+
             // 1. Play authentic pleasant airport terminal chime
             this.playAirportChime();
 
-            // 2. Wait 1.9s for the 3-tone chime to ring out with terminal hall echo before speaking
+            // 2. Wait 1.9s for the 3-tone chime to ring out before speaking
             await new Promise(r => setTimeout(r, 1900));
 
             // 3. Announce with female voice
@@ -357,6 +365,9 @@ class FlightAnnouncer {
         } catch (e) {
             console.warn('[FlightAnnouncer] Speech error:', e);
         } finally {
+            if (window.solariAudio) {
+                window.solariAudio.setAnnouncementActive(false);
+            }
             this.lastAnnouncementTime = Date.now();
             this.isProcessing = false;
             // Process next queued announcement after cooldown
@@ -377,6 +388,7 @@ class FlightAnnouncer {
 
             const source = ctx.createBufferSource();
             source.buffer = audioBuffer;
+            this.currentVoiceSource = source;
 
             // 1. Subtle Broadcast Vocal EQ (clean, natural, speech-optimized)
             // Low-cut at 160 Hz (removes sub-bass rumble, keeps voice clear)
@@ -401,13 +413,17 @@ class FlightAnnouncer {
             paHighpass.connect(paPresence);
             paPresence.connect(paRollOff);
 
+            const targetBus = (window.solariAudio && window.solariAudio.announcementBus)
+                ? window.solariAudio.announcementBus
+                : ctx.destination;
+
             // 2. Direct, crystal-clear voice (primary audio output: 96% volume)
             const dryGain = ctx.createGain();
             dryGain.gain.setValueAtTime(masterVol * 0.96, now);
             paRollOff.connect(dryGain);
-            dryGain.connect(ctx.destination);
+            dryGain.connect(targetBus);
 
-            // 3. Very faint, subtle room air (only 4% volume, zero repeating feedback, zero cavern echo)
+            // 3. Very faint, subtle room air (only 4% volume, zero repeating feedback)
             const roomReflection = ctx.createDelay();
             roomReflection.delayTime.setValueAtTime(0.022, now); // 22ms micro-reflection
 
@@ -416,9 +432,12 @@ class FlightAnnouncer {
 
             paRollOff.connect(roomReflection);
             roomReflection.connect(roomGain);
-            roomGain.connect(ctx.destination);
+            roomGain.connect(targetBus);
 
-            source.onended = () => resolve();
+            source.onended = () => {
+                this.currentVoiceSource = null;
+                resolve();
+            };
             source.start(now);
         });
     }
@@ -463,9 +482,15 @@ class FlightAnnouncer {
                 return;
             }
 
-            window.speechSynthesis.cancel();
+            // Only cancel if previous speech is finished
+            if (!window.speechSynthesis.speaking) {
+                window.speechSynthesis.cancel();
+            }
 
             const utterance = new SpeechSynthesisUtterance(text);
+            // Pin reference globally so Chrome V8 Garbage Collector does not collect utterance mid-sentence
+            window.__activeSpeechUtterance = utterance;
+
             if (this.preferredVoice) {
                 utterance.voice = this.preferredVoice;
             }
@@ -473,13 +498,19 @@ class FlightAnnouncer {
             utterance.rate = 0.88;
             utterance.volume = 1.0;
 
-            const safetyTimer = setTimeout(() => resolve(), 9000);
+            const safetyTimer = setTimeout(() => {
+                window.__activeSpeechUtterance = null;
+                resolve();
+            }, 10000);
+
             utterance.onend = () => {
                 clearTimeout(safetyTimer);
+                window.__activeSpeechUtterance = null;
                 resolve();
             };
             utterance.onerror = () => {
                 clearTimeout(safetyTimer);
+                window.__activeSpeechUtterance = null;
                 resolve();
             };
 

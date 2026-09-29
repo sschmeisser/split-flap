@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Split-Flap Board • San Jose Regional Hub</title>
-    <link rel="stylesheet" href="css/solari.css?v=5">
+    <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+    <link rel="stylesheet" href="css/solari.css?v=9">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%231a1b20'/><text y='70' x='20' font-size='65' fill='%23f5b722' font-family='sans-serif' font-weight='bold'>S</text></svg>">
 </head>
 <body>
@@ -14,8 +15,27 @@
         <span>🔊 Click anywhere to activate split-flap mechanical sound</span>
     </div>
 
-    <!-- Industrial Station Board Housing -->
-    <main class="station-housing" role="region" aria-label="Split-Flap Departures Board">
+    <!-- Live Transit Map Fullscreen Overlay (Replaces full screen when vehicle arrives/departs) -->
+    <section id="liveMapOverlay" class="live-map-overlay" aria-label="Live Vehicle Map Tracker" aria-hidden="true">
+        <div id="liveMap" class="live-map-canvas"></div>
+        <div class="map-vignette"></div>
+
+        <!-- Top-Right HUD Telemetry Box -->
+        <div class="map-hud-top-right">
+            <div class="map-vehicle-badge" id="mapVehicleBadge">✈️ SJC FLIGHT • GATE 21</div>
+            <div class="map-vehicle-dest" id="mapVehicleDest">SERVICE TO SEATTLE (SEA)</div>
+            <div class="map-location-tag" id="mapLocationName">Mineta San Jose Intl Airport • Runway 30R</div>
+            <div class="map-telemetry-status" id="mapTelemetryStatus">145 kts • CLIMBING OUT</div>
+            <div class="map-progress-track">
+                <div class="map-progress-fill" id="mapProgressFill"></div>
+            </div>
+        </div>
+
+        <div class="map-hud-hint">Press ESC to return to board immediately</div>
+    </section>
+
+    <!-- Industrial Station Board Housing (Smoothly glides to top-left corner in PiP mode) -->
+    <main class="station-housing" id="stationHousing" role="region" aria-label="Split-Flap Departures Board">
         
         <!-- Board Top Header -->
         <header class="board-header-bar">
@@ -78,16 +98,21 @@
         </div>
         <div class="tool-actions">
             <button class="icon-btn active" id="voiceToggleBtn" title="Toggle flight boarding voice (Key: V)">📢 Voice: ON</button>
+            <button class="icon-btn" id="mapPreviewBtn" title="Watch live arrival/departure map simulation (Key: L)">🗺️ Live Map</button>
             <button class="icon-btn" id="testSoundBtn" title="Test mechanical flap sound (Key: T)">🔊 Test Clack</button>
-            <button class="icon-btn active" id="soundToggleBtn" title="Toggle mechanical flap sound (Key: M)">🔊 Sound: ON</button>
+            <button class="icon-btn active" id="soundToggleBtn" title="Toggle mechanical flap sound (Key: S)">🔊 Sound: ON</button>
             <button class="icon-btn" id="fullscreenBtn" title="Toggle Fullscreen (Key: F)">⛶ Fullscreen</button>
         </div>
     </nav>
 
+    <!-- Vendor Libraries -->
+    <script src="vendor/leaflet/leaflet.js"></script>
+
     <!-- Split-Flap Scripts with Cache Busting -->
-    <script src="js/flap-audio.js?v=8" charset="UTF-8"></script>
-    <script src="js/flight-announcer.js?v=8" charset="UTF-8"></script>
-    <script src="js/split-flap.js?v=8" charset="UTF-8"></script>
-    <script src="js/app.js?v=8" charset="UTF-8"></script>
+    <script src="js/flap-audio.js?v=9" charset="UTF-8"></script>
+    <script src="js/flight-announcer.js?v=9" charset="UTF-8"></script>
+    <script src="js/split-flap.js?v=9" charset="UTF-8"></script>
+    <script src="js/live-map-viewer.js?v=9" charset="UTF-8"></script>
+    <script src="js/app.js?v=9" charset="UTF-8"></script>
 </body>
 </html>

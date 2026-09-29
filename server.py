@@ -33,6 +33,7 @@ from providers.caltrain_feed import fetch_caltrain_departures
 from providers.nuernberg_feed import fetch_nuernberg_departures
 from providers.sjc_flights_feed import fetch_sjc_flights
 from providers.vta_feed import fetch_vta_departures
+from providers.geo_telematics import enrich_geo_telematics
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("SolariServer")
@@ -261,7 +262,7 @@ class SolariHandler(http.server.SimpleHTTPRequestHandler):
                     "mode": mode,
                     "header": header,
                     "timestamp": german_time,
-                    "rows": data,
+                    "rows": [enrich_geo_telematics(dict(r)) for r in data],
                 }
 
             # 2. SAN JOSE REGIONAL HUB (USA Hub)
@@ -294,7 +295,7 @@ class SolariHandler(http.server.SimpleHTTPRequestHandler):
                     "mode": mode,
                     "header": header,
                     "timestamp": time.strftime("%H:%M:%S"),
-                    "rows": data,
+                    "rows": [enrich_geo_telematics(dict(r)) for r in data],
                 }
 
             body = json.dumps(payload).encode("utf-8")
